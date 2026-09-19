@@ -31,6 +31,12 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`Trainer.train_epoch` read the host name with `os.uname`, which does not
+exist on Windows. `platform.node` returns the same thing everywhere.
+
+Two statements in the trainer evaluated a value and discarded it, left
+behind when the earlier unused-variable pass removed their assignments.
+
 The out-of-memory recovery in `Trainer.feed_batches` recognized the
 error only by the first 18 characters of its message. PyTorch raises
 `torch.cuda.OutOfMemoryError`, a `RuntimeError` subclass, so the type is

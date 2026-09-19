@@ -11,6 +11,7 @@ import gc
 import glob
 import math
 import os
+import platform
 import re
 import random
 import sys
@@ -508,7 +509,6 @@ class Trainer:
         steps = cdata.log.train_step
         config = self.config
         #vocab_size = len(self.model.vocab)
-        len(self.train_data)
         trained = self.train_df[self.train_df.last_epoch == cdata.log.epoch]
         if True:
             dprint(self.last_worst_criterion)
@@ -1137,7 +1137,6 @@ class Trainer:
             #self.last_worst_criterion = trained.criterion.max()
             #self.last_worst_criterion = self.train_df.criterion.max()
             self.last_worst_criterion = self.config.get('log.min_worst_train_ppl')
-        len(self.train_data)
         if len(train_df) == 0:
             logger.info(f"train dataset: (following lines)\n{train_df!r}")
             logger.info("nothing to train, finishing the training")
@@ -1155,7 +1154,8 @@ class Trainer:
         elapsed = cdata.log.elapsed
         cdata.log.elapsed_hours = elapsed / 3600
         cdata.log.elapsed_days  = elapsed / 3600 / 24
-        hostname = os.uname().nodename
+        # os.uname は Unix 専用。platform.node は同じ名前をどこでも返す
+        hostname = platform.node()
         logger.debug("hostname: " + hostname)
         logger.debug("process id: " + str(os.getpid()))
         logger.debug(f"using devices: {args.gpu}")
