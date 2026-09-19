@@ -31,6 +31,15 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`ContextualStringEmbedding` could not be constructed: it assigned its
+submodules without calling `nn.Module.__init__` first, which PyTorch
+refuses. Past that, `forward` concatenated along `dim=3` tensors that have
+three dimensions, and `prepare_batch` reached for `self.weight` and
+`self.str2tensor`, neither of which the class has. That last body belongs
+to `CharacterEmbedding`, whose own `prepare_batch` was a bare `pass`
+returning `None`; it has been moved there, and the case where no branch
+assigned the batch now raises instead of falling through.
+
 `DotAttention` merged a bidirectional memory with
 `memory.split(2, dim=2)`, taking adjacent pairs of features. The encoder
 concatenates the two directions in blocks, `cat([forward, backward])`, so

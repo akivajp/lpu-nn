@@ -30,6 +30,15 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`ContextualStringEmbedding` は構築すらできませんでした。`nn.Module.__init__`
+を呼ばないままサブモジュールを代入しており、PyTorch がこれを拒みます。
+その先でも、`forward` が 3 次元のテンソルを `dim=3` で連結しようとし、
+`prepare_batch` はこのクラスに存在しない `self.weight` と `self.str2tensor`
+を参照していました。この `prepare_batch` の中身は本来 `CharacterEmbedding`
+のもので、そちらの `prepare_batch` は `pass` だけで `None` を返していました。
+実装を移すとともに、どの分岐にも当たらない入力がそのまま先へ進んでいた
+点を例外にしました。
+
 `DotAttention` は双方向の記憶を `memory.split(2, dim=2)` で、隣り合う
 2 要素ずつ平均していました。エンコーダは `cat([前向き, 後向き])` と
 ブロックで連結するため、これは同じ向き同士を平均しているだけで、2 つの
