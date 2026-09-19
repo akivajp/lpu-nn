@@ -2,6 +2,9 @@
 
 # system
 import argparse
+import os
+from collections.abc import Iterable
+from typing import Any
 import functools
 import tempfile
 import unicodedata
@@ -25,7 +28,7 @@ MODEL_TYPE_CHOICES = ['unigram', 'bpe', 'word', 'char']
 from collections import defaultdict
 
 #def split_digits(segment):
-def split_digit_chars(segment):
+def split_digit_chars(segment: bytes) -> list[bytes]:
     tokens = []
     buf = b''
     for code in segment:
@@ -41,7 +44,7 @@ def split_digit_chars(segment):
         tokens.append(buf)
     return tokens
 
-def load_coverage(path):
+def load_coverage(path: str) -> set[bytes]:
     coverage = set()
     #for line in pview(path).read_byte_lines():
     for line in pview(path):
@@ -56,13 +59,53 @@ def load_coverage(path):
             coverage.add(low_norm.encode('utf-8'))
     return coverage
 
-def preprocess(train_files,
-               sep=b'\t', min_count=None, max_count=None, max_bytes=None, max_segments=None,
-               force_coverage=False, split_digits=True, cover_segments=None):
+def _finish(temp: Any, count: int) -> Any:
+    """Flush the scratch file and report what it holds
+
+    作業用ファイルを flush し、中身を報告する。
+
+    SentencePiece is handed `temp.name` and reads it from disk, so anything
+    still sitting in the buffer is simply not there. Without this flush the
+    file was 0 bytes for a small corpus, and truncated at the last 8 KiB
+    boundary for a large one, so every model trained here was trained on
+    less than the corpus it was given. An empty result used to surface as
+    an internal error from inside SentencePiece.
+
+    SentencePiece には `temp.name` を渡してディスクから読ませるため、
+    バッファに残った分はそこに存在しない。この flush が無いと、小さな
+    コーパスではファイルが 0 バイトになり、大きなコーパスでも最後の
+    8 KiB 境界で切り詰められる。つまり、ここで学習した全てのモデルは
+    与えられたコーパスより少ない量で学習されていた。空になった場合は
+    SentencePiece 内部のエラーとして現れていた。
+    """
+    temp.flush()
+    size = os.path.getsize(temp.name)
+    logger.info(f"finished pre-process: {count:,d} segments, {size:,d} bytes")
+    if size == 0:
+        raise ValueError(
+            "the pre-processed corpus is empty: every segment was filtered out. "
+            "Lower --min-count, or give a larger corpus."
+        )
+    return temp
+
+def preprocess(train_files: "str | Iterable[str]",
+               sep: bytes = b'\t', min_count: "int | None" = None,
+               max_count: "int | None" = None, max_bytes: "int | None" = None,
+               max_segments: "int | None" = None, force_coverage: bool = False,
+               split_digits: bool = True,
+               cover_segments: "set[bytes] | None" = None) -> Any:
+    """Write the segments of the training corpus to a scratch file
+
+    訓練コーパスの各セグメントを作業用ファイルへ書き出す。
+
+    `min_count` を指定すると、各セグメントはその回数目の出現から書き出される
+    (それ未満の出現は捨てられる)。全ての語が 1 度しか現れない小さな
+    コーパスでは、既定の `min_count=2` で何も残らない点に注意。
+    """
     #MAX_SEGMENT_LENGTH = 30
     MAX_SEGMENT_LENGTH = 50
-    count_segment = defaultdict(int)
-    count_char = defaultdict(int)
+    count_segment: defaultdict[bytes, int] = defaultdict(int)
+    count_char: defaultdict[int, int] = defaultdict(int)
     max_char_count = 0
     space_keywords = [
         'ARABIC', # "پ", "خ", ...
@@ -164,22 +207,25 @@ def preprocess(train_files,
                     #dprint(byte_count)
                     if max_bytes and byte_count >= max_bytes:
                         reader.close()
-                        logger.info("finished pre-process")
-                        return temp
+                        return _finish(temp, count)
                     temp.write(segment)
                     temp.write(b'\n')
                     count += 1
         del reader
-    logger.info("finished pre-process")
-    return temp
+    return _finish(temp, count)
 
-def train_tokenizer(model_prefix, train_files, vocab_size=DEFAULT_VOCAB_SIZE,
-    model_type=DEFAULT_MODEL_TYPE, unk_surface=DEFAULT_UNK_SURFACE, force_coverage=False,
-    min_count=DEFAULT_MIN_COUNT, cover_segments=None, normalize=False,
-    hard_vocab_limit=False):
+def train_tokenizer(model_prefix: str, train_files: "str | Iterable[str]",
+    vocab_size: int = DEFAULT_VOCAB_SIZE,
+    model_type: str = DEFAULT_MODEL_TYPE, unk_surface: str = DEFAULT_UNK_SURFACE,
+    force_coverage: bool = False,
+    min_count: int = DEFAULT_MIN_COUNT, cover_segments: "str | None" = None,
+    normalize: bool = False,
+    hard_vocab_limit: bool = False) -> str:
     spm_force_coverage = force_coverage
+    # 引数はパス、読み込み後はセグメントの集合になるため別の名前で持つ
+    coverage: set[bytes] | None = None
     if cover_segments:
-        cover_segments = load_coverage(cover_segments)
+        coverage = load_coverage(cover_segments)
     split_digits = True
     if model_type == 'char':
         split_digits = True
@@ -210,7 +256,7 @@ def train_tokenizer(model_prefix, train_files, vocab_size=DEFAULT_VOCAB_SIZE,
         force_coverage = force_coverage,
         max_bytes = max_bytes,
         split_digits = split_digits,
-        cover_segments = cover_segments,
+        cover_segments = coverage,
     )
     args = []
     args.append(f'--model_prefix={model_prefix}')
@@ -240,7 +286,7 @@ def train_tokenizer(model_prefix, train_files, vocab_size=DEFAULT_VOCAB_SIZE,
     logger.info("finished training SentencePiece")
     return model_path
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser("Tokenizer Trainer")
     parser.add_argument("model_prefix", type=str, help="output model prefix")
     parser.add_argument("train_files", type=str, nargs="+", help="input text files to train tokenizer")
@@ -257,7 +303,9 @@ def main():
     args = parser.parse_args()
     with logging.using_config(logger, debug=args.debug):
         dprint(args)
-        return train_tokenizer(args.model_prefix, args.train_files,
+        # エントリポイントとしては値を返さない (学習済みモデルのパスは
+        # model_prefix から決まるため、呼び出し側は既に知っている)
+        train_tokenizer(args.model_prefix, args.train_files,
             vocab_size=args.vocab_size,
             model_type=args.model_type,
             unk_surface=args.unk_surface,

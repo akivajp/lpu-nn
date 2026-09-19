@@ -31,6 +31,19 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+The SentencePiece pre-processor never flushed the scratch file it hands
+to the trainer. SentencePiece is given `temp.name` and reads it from
+disk, so whatever remained in the buffer was simply not there: for a
+small corpus the file was 0 bytes and training failed with an internal
+error from inside SentencePiece, and for a large one it was truncated at
+the last 8 KiB boundary. Every tokenizer this codebase has trained was
+therefore trained on less text than it was given. The file is flushed
+now, and an empty result says which knob to turn instead of surfacing a
+message from inside the library.
+
+This changes the vocabulary a given corpus produces, and with it the loss
+a training run reports, because the tokenizer now sees the whole corpus.
+
 `AdaBoundW` lost its optimizer state whenever that state and the
 parameters sat on different devices, which is what resuming from a
 checkpoint saved on the CPU produces. It moved the moments with

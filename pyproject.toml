@@ -122,6 +122,7 @@ files = [
     "lpu_nn/common/criteria.py",
     "lpu_nn/common/dataset.py",
     "lpu_nn/common/initialization.py",
+    "lpu_nn/common/tokenizer.py",
     "lpu_nn/common/files.py",
     "lpu_nn/common/utils.py",
     "lpu_nn/common/vocab.py",
