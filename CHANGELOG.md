@@ -31,6 +31,27 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`Trainer.try_loading` re-raised on the first record that failed to load,
+and the line recording the failure sat unreachable behind that raise, so
+only the first entry of `--resume` was ever tried. `--resume` takes a
+list precisely so a later record can stand in for one that does not load.
+It now tries each in turn and raises only when none of them loads.
+
+`Trainer.load_status` assigned `record_dir` inside the `load_optimizer`
+branch and then used it for `reuse_dataset`, so asking to reuse the
+dataset without loading the optimizer raised `UnboundLocalError`.
+`Trainer.load_model` referenced `idmaps` whether or not the checkpoint
+carried it, with the same result; it says what the checkpoint is missing
+now.
+
+`set_logfile_handler` removed the previous handler without closing it,
+and closing a `StreamHandler` does not close the stream it was given. It
+builds a `FileHandler` now, which owns its file.
+
+Several writers used the platform default encoding, which corrupts
+non-ASCII content on Windows: the configuration, the labels, the scores
+and the dataset append.
+
 `build_batches` and `reduce_batch_size` fell off the end and returned
 `None` for a batch type they did not recognize, which the caller then
 tried to iterate or index. They name the type they were given now.

@@ -196,7 +196,10 @@ def set_logfile_handler(logpath: str) -> None:
             l.removeHandler(logfile_handler)
         # 外したハンドラと、その先のファイルを閉じる (以前は開いたままだった)
         logfile_handler.close()
-    logfile_handler = logging.StreamHandler(open(logpath, 'a', encoding='utf-8', errors='backslashreplace'))
+    # StreamHandler.close() は渡されたストリームを閉じない。FileHandler は
+    # 自分で開いたファイルを閉じるため、差し替えで取り残しが出ない
+    logfile_handler = logging.FileHandler(
+        logpath, mode='a', encoding='utf-8', errors='backslashreplace')
     for name in target_loggers:
         l = logging.getLogger(name)
         l.addHandler(logfile_handler)
@@ -640,7 +643,7 @@ class Trainer:
         self.labels.append('<unk>')
         self.label2id['<unk>'] = 0
         if path:
-            for line in open(path):
+            for line in open(path, encoding='utf-8'):
                 #ids = tuple(self.vocab.encode(line.strip()))
                 label = line.strip()
                 #if ids not in self.label2id:
@@ -665,9 +668,12 @@ class Trainer:
             config = self.update_config(config, self.args)
         dprint(config.to_json(upstream=True, indent=2))
         params = config.to_dict(flat=True, upstream=True)
-        if 'idmaps' in loaded_state_dict:
-            idmaps = FieldMap().set_state(loaded_state_dict['idmaps'])
-            #dprint(idmaps)
+        if 'idmaps' not in loaded_state_dict:
+            # 以前はここを素通りし、直後の参照が UnboundLocalError になっていた
+            raise ValueError(
+                f"the checkpoint has no vocabulary state ('idmaps'): {model_path}")
+        idmaps = FieldMap().set_state(loaded_state_dict['idmaps'])
+        #dprint(idmaps)
         model = self.Model(idmaps=idmaps, **params)
         loaded_model_state_dict = loaded_state_dict['model']
         try:
@@ -752,8 +758,12 @@ class Trainer:
         if model_path is None:
             raise RuntimeError("not found files: {}".format(str.join(', ', path_candidates)))
         config, model = self.load_model(model_path)
+        # record_dir は reuse_dataset でも使うため、分岐の外で決める
+        # (以前は load_optimizer の分岐内でしか代入されず、
+        #  reuse_dataset=True かつ load_optimizer=False で
+        #  UnboundLocalError になっていた)
+        record_dir = os.path.dirname(model_path)
         if load_optimizer:
-            record_dir = os.path.dirname(model_path)
             optimizer_path = os.path.join(record_dir, 'optimizer.pt')
             optimizer = self.load_optimizer(optimizer_path, config, model)
         else:
@@ -784,7 +794,7 @@ class Trainer:
             import matplotlib.pyplot as plt
             if not isinstance(fields_y, (tuple,list)):
                 fields_y = fields_y
-            lines = open(infile_scores).readlines()
+            lines = open(infile_scores, encoding='utf-8').readlines()
             data = [json.loads(line) for line in lines]
             df = pd.DataFrame(data)
             label_x = None
@@ -1278,20 +1288,42 @@ class Trainer:
         return True
 
     def try_loading(self, workdir, list_resume):
+        """Load the first of the given records that can be loaded
+
+        与えられた記録のうち、最初に読み込めたものを読み込む。
+
+        `--resume` takes a list precisely so that a later entry can stand in
+        for one that does not load. The loop used to re-raise on the first
+        failure, and the line recording it was unreachable behind that
+        raise, so only the first entry was ever tried. A failure of every
+        entry still raises, since carrying on without a loaded model would
+        silently start the run from scratch.
+
+        `--resume` が一覧を取るのは、読み込めなかった記録を後続で代替する
+        ためである。ループは最初の失敗でそのまま送出しており、それを記録
+        する行は raise の後ろで到達不能だった。つまり最初の 1 件しか
+        試されていなかった。全ての候補が失敗した場合は送出する。
+        読み込めないまま先へ進むと、黙って最初から学習し直すことになる
+        ためである。
+        """
         list_failed = []
+        last_error = None
         for resume_entry in list_resume:
             try:
                 dprint(resume_entry)
                 #self.load_status(workdir, record=resume_entry, load_optimizer=True)
                 self.load_status(workdir, record=resume_entry, load_optimizer=True, reuse_dataset=True)
                 logger.info(f"successfully loaded: {resume_entry}")
-                break
+                return self
             except Exception as e:
                 #logger.debug(repr(e))
                 logger.exception(e)
                 logger.info(f"failed to load: {resume_entry}")
-                raise e
                 list_failed.append(resume_entry)
+                last_error = e
+        if last_error is not None:
+            logger.error(f"none of the given records could be loaded: {list_failed}")
+            raise last_error
         return self
 
     def save_config(self, workdir, record=None, log=True):
@@ -1306,7 +1338,7 @@ class Trainer:
         config_name = 'config.json'
         config_path = os.path.join(recdir, config_name)
         safe_remove(config_path, log=False)
-        with open(config_path, 'w') as fobj:
+        with open(config_path, 'w', encoding='utf-8') as fobj:
             if log:
                 logger.info(f"saving configuration into '{config_path}'")
             #fobj.write(self.config.to_json(indent=2))
@@ -1314,7 +1346,7 @@ class Trainer:
         return
 
     def save_labels(self, path):
-        with open(path, 'w') as fobj:
+        with open(path, 'w', encoding='utf-8') as fobj:
             for label in self.labels:
                 fobj.write(self.vocab.decode(label))
                 fobj.write("\n")
@@ -1362,7 +1394,7 @@ class Trainer:
         scores_path = os.path.join(workdir, 'record.tmp', 'scores.json')
         #safe_remove(scores_path)
         #with open(os.path.join(workdir, 'record.latest', 'scores.json'), 'a') as fobj:
-        with open(scores_path, 'a') as fobj:
+        with open(scores_path, 'a', encoding='utf-8') as fobj:
             fobj.write(scores.to_json())
             fobj.write("\n")
 
@@ -1471,7 +1503,8 @@ class Trainer:
         safe_remove(self.temp_train_data_path)
         logger.info(f"saving dataset into: {self.temp_train_data_path}")
         self.train_data.save(self.temp_train_data_path, cdata.train.max_samples_per_epoch, None, 1)
-        df.to_csv(open(self.temp_train_data_path, 'a'), sep='\t', header=False)
+        with open(self.temp_train_data_path, 'a', encoding='utf-8') as fobj_data:
+            df.to_csv(fobj_data, sep='\t', header=False)
         #safe_rename(self.train_data_path, self.prev_train_data_path)
         safe_rename(self.temp_train_data_path, self.train_data_path)
         return True
@@ -2074,7 +2107,8 @@ def main(Trainer, modelname):
     # checking conflicting process
     pidpath = os.path.join(tmp_record_dir, 'training.pid')
     if os.path.isfile(pidpath):
-        pid = int(open(pidpath).readline())
+        with open(pidpath, encoding='utf-8') as fobj_pid:
+            pid = int(fobj_pid.readline())
         dprint(pid)
         try:
             os.kill(pid, 0)
