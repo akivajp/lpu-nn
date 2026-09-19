@@ -64,11 +64,12 @@ class TestSplitDigitChars:
 
 class TestLoadCoverage:
     def test_collects_every_written_form(self, tmp_path):
-        # 原形・小文字・NFKC 正規化のいずれでも引けるようにすること
+        # 原形・小文字・NFKC 正規化のいずれでも引けるようにすること。
+        # 全角のラテン文字は、正規化を検証するための入力そのもの
         path = tmp_path / 'cover.txt'
-        path.write_text('Ｃａｔ\n', encoding='utf-8')
+        path.write_text('Ｃａｔ\n', encoding='utf-8')  # noqa: RUF001
         coverage = tokenizer.load_coverage(str(path))
-        assert 'Ｃａｔ'.encode() in coverage
+        assert 'Ｃａｔ'.encode() in coverage  # noqa: RUF001
         assert b'Cat' in coverage
         assert b'cat' in coverage
 
