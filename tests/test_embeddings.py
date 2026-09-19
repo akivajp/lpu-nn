@@ -37,7 +37,8 @@ class TestExtractVector:
 
     def test_normalizes_full_width_characters(self):
         vectors = {'abc': torch.ones(3)}
-        assert torch.equal(extract_vector('ａｂｃ', vectors), torch.ones(3))
+        # 全角のラテン文字は、NFKC 正規化を検証するための入力そのもの
+        assert torch.equal(extract_vector('ａｂｃ', vectors), torch.ones(3))  # noqa: RUF001
 
     def test_returns_none_when_nothing_matches(self):
         assert extract_vector('dog', {'cat': torch.ones(3)}) is None
