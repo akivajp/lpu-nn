@@ -109,7 +109,15 @@ select = [
 # New modules are added here as their annotations land.
 # (lpu と同様に段階的導入。注釈済みモジュールのみを検査対象とし、
 #  注釈を付けたものからここに追加していく)
-files = []
+# The ported code is not annotated yet; these two modules were written for
+# this package and are, so they hold the baseline. Add each ported module
+# here as its annotations land.
+# (移植コードは未注釈。この 2 つは本パッケージ用に書き下ろしたもので注釈
+#  済みのため、ここを起点とする。移植分は注釈を付けた順に追加していく)
+files = [
+    "lpu_nn/common/args.py",
+    "lpu_nn/common/files.py",
+]
 follow_imports = "silent"
 check_untyped_defs = true
 disallow_untyped_defs = true
