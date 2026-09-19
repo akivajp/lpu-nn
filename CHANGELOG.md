@@ -31,6 +31,22 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`DotAttention` merged a bidirectional memory with
+`memory.split(2, dim=2)`, taking adjacent pairs of features. The encoder
+concatenates the two directions in blocks, `cat([forward, backward])`, so
+that averaged each direction with itself and never paired the two
+together. It now splits the memory in half and averages dimension by
+dimension. The default attention is `mlp`, so this affected
+`--attention dot` with an LSTM encoder.
+
+The attention layers read `hidden_size` with `params.get` and passed the
+result straight to `nn.Linear`, so a missing value arrived as
+`None * 3`. The MLP attention did the same with its activation. Both say
+what is missing now.
+
+`CharacterEmbedding.tensor2bytes` asserted on `tensor.ndim()`; `ndim` is a
+property, so the call raised `TypeError`.
+
 `activation.Swish1` called `super(Swish, self).__init__()`, naming a class
 it does not derive from, so `get_activator('swish1')` raised a `TypeError`
 every time. Nothing could have used it.

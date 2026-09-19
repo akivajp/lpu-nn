@@ -166,7 +166,8 @@ class CharacterEmbedding(Embedding):
 
     def tensor2bytes(self, tensor, remove_symbols=True):
         assert isinstance(tensor, torch.Tensor)
-        assert tensor.ndim() == 1
+        # ndim はプロパティであり呼び出せない (元の書き方は TypeError)
+        assert tensor.ndim == 1
         seq = tensor.tolist()
         if remove_symbols:
             if seq[0] == self.bos:
