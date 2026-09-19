@@ -72,7 +72,7 @@ class AttentionBase(modeling.Module):
         window_size = self.window_size
         eps = 1e-7
         sigma = self.window_size / 2.0
-        batch_size, len_mem = memory_mask.shape
+        _batch_size, len_mem = memory_mask.shape
         batch_len = memory_mask.sum(dim=1)[:,None].float() # (B,1)
         #pos = torch.arange(len_mem)[None,:].repeat(batch_size, axis=0) # (B, L)
         pos = torch.arange(len_mem)[None,:].float().to(device) # (1, L)
@@ -138,7 +138,7 @@ class ConcatAttention(AttentionBase):
     def score(self, memory, h_dec):
         # memory : (B, L, H1)
         # h_dec  : (B, H2)
-        batch_size, len_mem, hidden_size1 = memory.shape
+        _batch_size, len_mem, _hidden_size1 = memory.shape
         h_dec = h_dec[:,None,:].repeat(1, len_mem, 1) # (B, L, H2)
         concat = torch.cat([memory, h_dec], dim=2) # (B, L, H1+H2)
         return self.mod_linear(concat) # (B, L, 1)
@@ -191,7 +191,7 @@ class MLPAttention(AttentionBase):
         # memory : (B, L, H)
         # h_dec  : (B, H)
         #h_dec = h_dec[:,None,:].expand_as(memory) # (B, L, H)
-        batch_size, len_mem, hidden_size1 = memory.shape
+        _batch_size, len_mem, _hidden_size1 = memory.shape
         h_dec = h_dec[:,None,:].repeat(1, len_mem, 1) # (B, L, H2)
         concat = torch.cat([memory, h_dec], dim=2) # (B, L, H1+H2)
         return self.mod_score(concat) # (B, L, 1)

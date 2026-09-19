@@ -56,7 +56,7 @@ class SequenceConvolution1d(nn.Conv1d):
             pass # pytorch default initializer
 
     def forward(self, seq):
-        batch_size, length, input_size = seq.shape
+        batch_size, _length, input_size = seq.shape
         n = self.ngram_order
         seq = seq.transpose(1,2) # (B, I, L)
         in_seq = seq

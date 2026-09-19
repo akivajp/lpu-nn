@@ -20,17 +20,17 @@ def cross_entropy(h, t, ignore_index=-1, reduction='mean', *args, **kwargs):
     if reduction == 'hmean':
         if isinstance(ignore_index, int):
             t_valid = (t != ignore_index) # (B, L)
-            element_wise_entropy = nn.functional.cross_entropy(h, t, ignore_index=ignore_index, reduction='none', *args, **kwargs)
+            element_wise_entropy = nn.functional.cross_entropy(h, t, *args, ignore_index=ignore_index, reduction='none', **kwargs)
         elif isinstance(ignore_index, list):
             t_valid = (t == t) # (B, L)
             for ignore in ignore_index:
                 t_valid = t_valid & (t != ignore)
-            element_wise_entropy = nn.functional.cross_entropy(h, t, reduction='none', *args, **kwargs)
+            element_wise_entropy = nn.functional.cross_entropy(h, t, *args, reduction='none', **kwargs)
             element_wise_entropy = purge_tensor(element_wise_entropy, t_valid, 0.0)
         normalizer = t_valid.sum(1).float() # (B,)
         xent = element_wise_entropy.sum(1) / normalizer # (B,)
     else:
-        xent = nn.functional.cross_entropy(h, t, ignore_index=ignore_index, reduction=reduction, *args, **kwargs)
+        xent = nn.functional.cross_entropy(h, t, *args, ignore_index=ignore_index, reduction=reduction, **kwargs)
     return xent.to(dtype)
 
 def perplexity(h, t, *args, **kwargs):
@@ -62,7 +62,7 @@ def sequence_accuracy(h, t, ignore_index=-1):
 def smoothed_cross_entropy(h, t, smooth=0.1, ignore_index=-1, reduction='mean'):
     dtype  = h.dtype
     h = h.float()
-    batch_size, vocab_size, seq_len = h.shape
+    _batch_size, vocab_size, _seq_len = h.shape
     t_valid = (t != ignore_index) # (B, L)
     zeros = torch.zeros_like(h)
     t_dummy = purge_tensor(t, t_valid, 0)

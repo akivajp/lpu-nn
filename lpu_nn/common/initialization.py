@@ -33,7 +33,9 @@ def init_weights(m, name=None):
             logger.debug(f"initializing {m.__class__.__name__} weights")
         try:
             m.init_weights(name=name)
-        except:
+        except TypeError:
+            # init_weights は name を取るものと取らないものがあるため、
+            # 署名の不一致だけを捉えて引数無しで呼び直す
             m.init_weights()
     elif isinstance(m, nn.Embedding):
         logger.debug("initializing Embedding weight orthogonally")

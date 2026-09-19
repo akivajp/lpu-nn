@@ -16,7 +16,7 @@ def copy_model(src, dst, depth=0):
     :param nn.Module dst: target module
     :param int depth: depth for indentation (for debug use)
     """
-    indent = '  ' * depth
+    '  ' * depth
     assert isinstance(src, nn.Module)
     assert isinstance(dst, nn.Module)
     param_dict = {}
@@ -147,14 +147,14 @@ def get_sample_state(state, i):
     elif isinstance(state, (list, tuple)):
         return type(state)(get_sample_state(elem, i) for elem in state)
     elif isinstance(state, dict):
-        return dict((key, get_sample_state(val, i)) for key, val in state.items())
+        return {key: get_sample_state(val, i) for key, val in state.items()}
     elif state is None:
         return None
     else:
         raise TypeError(f"unsupported type: {type(state).__name__}")
 
 def split_state(state, batch_size):
-    return list(get_sample_state(state, i) for i in range(batch_size))
+    return [get_sample_state(state, i) for i in range(batch_size)]
 
 def stack_state_list(state_list):
     if state_list is None:
@@ -172,7 +172,7 @@ def stack_state_list(state_list):
         return type(first)(stack_state_list([state[i] for state in state_list]) for i in indices)
     elif isinstance(first, dict):
         keys = first.keys()
-        return dict((key, stack_state_list([state[key] for state in state_list])) for key in keys)
+        return {key: stack_state_list([state[key] for state in state_list]) for key in keys}
     else:
         raise TypeError(f"unsupported type: {type(first).__name__}")
 

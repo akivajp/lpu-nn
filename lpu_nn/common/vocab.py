@@ -193,10 +193,10 @@ class Vocabulary(IDMapBase):
         ids = list(ids)
         if add_bos:
             if ids[0:1] != [self.bos]:
-                ids = [self.bos] + ids
+                ids = [self.bos, *ids]
         if add_eos:
             if ids[-1:] != [self.eos]:
-                ids = ids + [self.eos]
+                ids = [*ids, self.eos]
         return ids
 
     def sample(self, exclude_symbols=True, additions=None):
@@ -212,8 +212,8 @@ class Vocabulary(IDMapBase):
                 return random.choice(additions)
         return random.randint(int_from, int_to)
 
-    def set_symbols(self, extra_symbols={}):
-        default_symbols=dict(bos='<s>', eos='</s>', pad='<pad>', unk='<unk>')
+    def set_symbols(self, extra_symbols=None):
+        default_symbols={"bos": '<s>', "eos": '</s>', "pad": '<pad>', "unk": '<unk>'}
         if hasattr(self, 'symbols'):
             symbols = self.symbols
         else:
@@ -344,10 +344,10 @@ class CharacterMap(IDMapBase):
         ids = list(ids)
         if add_bos:
             if ids[0:1] != [self.bos]:
-                ids = [self.bos] + ids
+                ids = [self.bos, *ids]
         if add_eos:
             if ids[-1:] != [self.eos]:
-                ids = ids + [self.eos]
+                ids = [*ids, self.eos]
         return ids
 
     def sample(self, exclude_symbols=True, additions=None):
@@ -363,7 +363,7 @@ class CharacterMap(IDMapBase):
                 return random.choice(additions)
         return random.randint(int_from, int_to)
 
-    def set_symbols(self, extra_symbols=[]):
+    def set_symbols(self, extra_symbols=None):
         #default_symbols=OrderedDict([('bos', '<s>'), ('eos', '</s>')])
         default_symbols=['bos', 'eos']
         if hasattr(self, 'symbols'):
@@ -385,8 +385,7 @@ class CharacterMap(IDMapBase):
         return 256 + self.offset
 
     def __iter__(self):
-        for s in self.list_id2str:
-            yield s
+        yield from self.list_id2str
 
 class IDMap(IDMapBase):
     def __init__(self, sep=' '):
@@ -416,10 +415,11 @@ class IDMap(IDMapBase):
         else:
             return self.unk
 
-    def set_symbols(self, extra_symbols={}):
+    def set_symbols(self, extra_symbols=None):
         symbol_pairs = [('pad', '<pad>'), ('bos','<s>'), ('eos','</s>'), ('unk', '<unk>')]
         symbols = OrderedDict(symbol_pairs)
-        symbols.update(extra_symbols)
+        if extra_symbols:
+            symbols.update(extra_symbols)
         for key, sym in symbols.items():
             id = self.str2id(sym, True)
             setattr(self, key, id)
@@ -431,10 +431,10 @@ class IDMap(IDMapBase):
         ids = list(ids)
         if add_bos:
             if ids[0:1] != [self.bos]:
-                ids = [self.bos] + ids
+                ids = [self.bos, *ids]
         if add_eos:
             if ids[-1:] != [self.eos]:
-                ids = ids + [self.eos]
+                ids = [*ids, self.eos]
         return ids
 
     #def encode(self, string, add_symbols=False):
@@ -500,7 +500,7 @@ class IDMap(IDMapBase):
         for sym in self.symbols.values():
             self.str2id(sym, growth=True)
         #for key, val in sorted(self.dict_count.items(), key=lambda k: -k[1]):
-        for token, count in sorted(self.dict_count.items(), key=lambda k: -k[1]):
+        for token, _count in sorted(self.dict_count.items(), key=lambda k: -k[1]):
             if token in set_symbols:
                 continue
             if len(self) >= vocab_size:
@@ -520,7 +520,7 @@ class IDMap(IDMapBase):
         with open(path, 'w') as fobj:
             set_symbols = set(self.symbols.values())
             #dprint(set_symbols)
-            for i, token in enumerate(self.list_id2str):
+            for _i, token in enumerate(self.list_id2str):
                 #fobj.write("{}\t{}\n".format(i, token))
                 if token in set_symbols:
                     count = 0
@@ -550,8 +550,7 @@ class IDMap(IDMapBase):
         return len(self.list_id2str)
 
     def __iter__(self):
-        for s in self.list_id2str:
-            yield s
+        yield from self.list_id2str
 
 class LabelMap(IDMap):
     def __init__(self):
@@ -565,7 +564,7 @@ class LabelMap(IDMap):
             components = label.split(':')
             if len(components) == 2:
                 try:
-                    f = float(components[1])
+                    float(components[1])
                     label = components[0]
                 except Exception as e:
                     dprint(e)
@@ -612,21 +611,23 @@ class LabelMap(IDMap):
             return string
         dist = self.str2dist(string)
         score = 0
-        for label, prob in zip(self.list_id2str, dist):
+        for label, prob in zip(self.list_id2str, dist, strict=False):
             try:
                 s = float(label)
-                score += s * prob
-            except:
-                pass
+            except ValueError:
+                # 数値でないラベルは期待値に寄与しない
+                continue
+            score += s * prob
         return score
 
-    def set_symbols(self, extra_symbols={}, add_unk=False):
+    def set_symbols(self, extra_symbols=None, add_unk=False):
         #symbol_pairs = [('unk', '<unk>')]
         symbol_pairs = []
         if add_unk:
             symbol_pairs.append( ('unk', '<unk>') )
         symbols = OrderedDict(symbol_pairs)
-        symbols.update(extra_symbols)
+        if extra_symbols:
+            symbols.update(extra_symbols)
         for key, sym in symbols.items():
             id = self.str2id(sym, True)
             setattr(self, key, id)
@@ -644,7 +645,7 @@ class FieldMap:
         if not os.path.isfile(os.path.join(workdir, 'sp.model')):
             model_prefix = os.path.join(workdir, 'sp')
             seq_indices = []
-            for i, (key, val) in enumerate(main_fields.items()):
+            for i, (_key, val) in enumerate(main_fields.items()):
                 if val in ['seq']:
                     seq_indices.append(i)
             if seq_indices:
@@ -725,7 +726,7 @@ class FieldMap:
         all_seq_tokens = []
         #all_tag_ids = []
         all_tag_tokens = []
-        for sub, tag in zip(list_sub, list_tags):
+        for sub, tag in zip(list_sub, list_tags, strict=False):
             if sep:
                 #sub = " " + sub
                 if not sub[:1].isspace():
@@ -751,7 +752,7 @@ class FieldMap:
         return self
 
     def load(self, workdir, main_fields):
-        for i, (key, val) in enumerate(main_fields.items()):
+        for _i, (key, val) in enumerate(main_fields.items()):
             if val in ['seq']:
                 if 'seq' not in self.dict_maps:
                     model_path = os.path.join(workdir, 'sp.model')
@@ -768,9 +769,6 @@ class FieldMap:
                 list_path = f"{workdir}/map_{key}.txt"
                 idmap = LabelMap().load(list_path)
                 self.dict_maps[key] = idmap
-            if val in ['label']:
-                logger.debug(f"feeding corpus for field map: {key} ({val})")
-                save_path = f"{workdir}/map_{key}.txt"
         self.main_fields.update(main_fields)
         return self
 

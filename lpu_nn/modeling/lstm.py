@@ -38,7 +38,7 @@ class StatefulLSTM(modeling.Module):
             if self.last_state is None:
                 zeros = torch.zeros(1, batch_size, self.out_size).to(x.device, x.dtype)
                 self.last_state = (zeros, zeros)
-            for elem_x, elem_mask in zip(list_x, list_mask):
+            for elem_x, elem_mask in zip(list_x, list_mask, strict=False):
                 _, (h, c) = self.mod_lstm(elem_x, self.last_state) # Tuple[1, B, H]
                 elem_mask = elem_mask.transpose(0,1).unsqueeze(2) # (1, B, 1)
                 #dprint(elem_mask.flatten())
@@ -54,10 +54,10 @@ class StatefulLSTM(modeling.Module):
         if self.last_state is None:
             return None
         else:
-            return dict(
-                h = self.last_state[0][0], # (B, H)
-                c = self.last_state[1][0], # (B, H)
-            )
+            return {
+                'h': self.last_state[0][0], # (B, H)
+                'c': self.last_state[1][0], # (B, H)
+            }
 
     def reset_state(self):
         self.last_state = None
@@ -90,7 +90,7 @@ class MultiLayerLSTM(nn.Module):
         #self.mods_lstm = models.ModuleArray(mods_lstm)
         if self.normalize:
             mods_norm = []
-            for i in range(0, self.num_layers-1):
+            for _i in range(0, self.num_layers-1):
                 mods_norm.append(nn.LayerNorm(self.out_size))
             self.mods_norm = nn.ModuleList(mods_norm)
         #self.mod_dropout = nn.Dropout(self.dropout_ratio)

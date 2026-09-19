@@ -16,6 +16,26 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
 
 ### 修正
 
+`lpu_nn.modeling.__all__` に未移植の `match_ranker` と `re2` が残っており、
+`from lpu_nn.modeling import *` が失敗していました。両パッケージの
+`__all__` を実際の公開内容に合わせました。
+
+`FieldMap.load` に `FieldMap.train` から複製された残骸があり、"feeding
+corpus" というログを出した上で使われないパスを算出していました。削除
+しました。
+
+4 つのメソッドが可変オブジェクトを既定引数に取っており、うち 2 つは
+それをそのまま `dict.update` へ渡していました。また、bare `except` は
+意図した例外を明示するようにしました (`init_weights` の署名不一致、
+シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
+数値として解釈できないラベル)。
+
+`ModuleConnection` は `get_parameters` が既定値を算出する `init_gamma`
+を読み出しますが、適用する箇所がありません。LayerNorm のゲイン初期化の
+スケーリングがリファクタで失われており、現状この引数を渡しても効果は
+ありません。復活させると全モデルの初期化が変わるため、黙って変更せず
+その場に注記を残すに留めました。
+
 元コードにはテストが無く、2020 年以降実行されていませんでした。再び動作
 させる過程で以下の不具合を発見し、修正しました。
 

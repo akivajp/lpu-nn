@@ -14,13 +14,13 @@ logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
 def min_tuple(t1, t2):
-    return tuple(min(e1,e2) for e1, e2 in zip(t1,t2))
+    return tuple(min(e1,e2) for e1, e2 in zip(t1,t2, strict=False))
 
 def max_tuple(t1, t2):
-    return tuple(max(e1,e2) for e1, e2 in zip(t1,t2))
+    return tuple(max(e1,e2) for e1, e2 in zip(t1,t2, strict=False))
 
 def inter_tuple(t1, t2):
-    return tuple((e1+e2) / 2.0 for e1,e2 in zip(t1,t2))
+    return tuple((e1+e2) / 2.0 for e1,e2 in zip(t1,t2, strict=False))
 
 def get_indices(fields, keys):
     return tuple(fields.index(key) for key in keys)
@@ -216,7 +216,7 @@ def build_train_data(main_fields, save_path, train_file, sep= '\t', max_length=N
     #header = ['index', 'x', 't', 'len_x', 'len_t', 'cost', 'last_epoch', 'last_step', 'feed_count', 'criterion', 'priority']
     main_columns = list(main_fields.keys())
     len_columns = ['len_'+column for column, type in main_fields.items() if type == 'seq']
-    header = ['index'] + main_columns + len_columns + ['len', 'cost', 'last_epoch', 'last_step', 'feed_count', 'criterion', 'priority']
+    header = ['index', *main_columns, *len_columns, 'len', 'cost', 'last_epoch', 'last_step', 'feed_count', 'criterion', 'priority']
     writer.writerow(header)
     format_types = main_fields.values()
     too_long_count = 0
@@ -291,8 +291,8 @@ def load_eval_data(main_fields, file_or_buffer, sep='\t'):
         fobj = open(file_or_buffer, encoding='utf-8', errors='backslashreplace')
     rows = []
     #converters = gen_converters(main_fields)
-    format_types = main_fields.values()
-    for i, line in enumerate(fobj):
+    main_fields.values()
+    for _i, line in enumerate(fobj):
         try:
             fields = line.strip().split(sep)
             #fields = [vocab.encode_ids(field) for field in fields]

@@ -96,6 +96,14 @@ select = [
     "UP",   # pyupgrade
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# The comments in tokenizer.py deliberately list Cyrillic and Greek sample
+# characters next to the script names they belong to, so the ambiguous
+# character check (RUF003) misfires on them.
+# (tokenizer.py のコメントは、対応する文字種名の隣にキリル文字・ギリシャ
+#  文字の例を意図的に並べているため、曖昧文字の検査が誤検出する)
+"lpu_nn/common/tokenizer.py" = ["RUF003"]
+
 [tool.mypy]
 # Gradual adoption, as in lpu: only the modules annotated so far are checked.
 # New modules are added here as their annotations land.

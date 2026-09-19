@@ -224,8 +224,8 @@ def setup_optimizer(config, model):
     if weight_decay_rate > 0:
         logger.debug(f"setting weight_decay_rate = {weight_decay_rate} for the other parameters")
     param_groups = [
-        dict(params=others, weight_decay=weight_decay_rate),
-        dict(params=biases, weight_decay=0),
+        {'params': others, 'weight_decay': weight_decay_rate},
+        {'params': biases, 'weight_decay': 0},
     ]
     if optimizer_name in ['adam', 'amsgrad']:
         alpha   = cdata.train.adam_alpha
@@ -289,7 +289,7 @@ def build_batches_by_samples(df, batch_size):
 def build_batches_by_tokens(df, batch_size):
     batch_items = []
     num_tokens = 0
-    for i, row in df.iterrows():
+    for _i, row in df.iterrows():
         batch_items.append(row)
         num_tokens += row.len
         if num_tokens >= batch_size:
@@ -342,7 +342,7 @@ class Trainer:
         train_size = len(self.train_data)
         #dprint(train_df.iloc[:5])
         if method in ['crit-len']:
-            train_samples = train_df.sort_values(['priority'] + ['len'])
+            train_samples = train_df.sort_values(['priority', 'len'])
         elif method in ['crit']:
             #train_samples = train_df.sort_values(['priority'])
             train_samples = train_df.sort_values(['priority'], kind='mergesort')
@@ -367,7 +367,7 @@ class Trainer:
                 digest_data1 = digest_data0
             digest_data2 = train_samples[train_samples.priority > 0]
             digest_data = pd.concat([digest_data1, digest_data2])
-            digest_str = repr(digest_data[self.len_fields + ['cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
+            digest_str = repr(digest_data[[*self.len_fields, 'cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
             logger.info("training data digest:\n" + digest_str)
             if cdata.log.epoch >= 2:
                 evaluated = train_df[train_df.criterion > 0]
@@ -445,7 +445,7 @@ class Trainer:
     def filter_noisy_samples(self):
         def drop_noise(noisy, based_on):
             noisy = noisy.sort_values('criterion')
-            noisy_repr = repr(noisy[self.len_fields + ['cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
+            noisy_repr = repr(noisy[[*self.len_fields, 'cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
             logger.info(f"noisy training data (based on \"{based_on}\"):\n{noisy_repr}")
             logger.info(f"dropping {len(noisy)} noisy training samples...")
             self.train_df.drop(noisy.index, inplace=True)
@@ -454,7 +454,7 @@ class Trainer:
         steps = cdata.log.train_step
         config = self.config
         #vocab_size = len(self.model.vocab)
-        train_size = len(self.train_data)
+        len(self.train_data)
         trained = self.train_df[self.train_df.last_epoch == cdata.log.epoch]
         if True:
             dprint(self.last_worst_criterion)
@@ -598,7 +598,7 @@ class Trainer:
                     self.labels.append(label)
         else:
             df = Dataset(self.main_train_data_path, self.sep).to_df(self.main_fields)
-            for i, row in df.iterrows():
+            for _i, row in df.iterrows():
                 #ids = row.s2
                 label = row.s2
                 if label not in self.label2id:
@@ -665,7 +665,7 @@ class Trainer:
             path = self.train_data_path
         logger.info(f"loading train dataset: {path}")
         if curriculum in ['crit-len']:
-            self.train_data = Dataset(path, sep='\t', priority_keys=['priority']+['len'])
+            self.train_data = Dataset(path, sep='\t', priority_keys=['priority', 'len'])
         elif curriculum in ['crit']:
             self.train_data = Dataset(path, sep='\t', priority_keys=['priority'])
         elif curriculum in ['len']:
@@ -769,7 +769,7 @@ class Trainer:
                 elif max_samples >= 1000 * 2:
                     df[field_x] /= 1000
                     label_x = 'Fed Samples [K samples]'
-            for i, (field, label) in enumerate(zip(fields_y, labels)):
+            for _i, (field, label) in enumerate(zip(fields_y, labels, strict=False)):
                 plt.plot(df[field_x], df[field], label=label, marker='.')
                 if field.find('perplexity') >= 0:
                     max_y = plt.ylim()[1]
@@ -1066,7 +1066,7 @@ class Trainer:
             #self.last_worst_criterion = trained.criterion.max()
             #self.last_worst_criterion = self.train_df.criterion.max()
             self.last_worst_criterion = self.config.get('log.min_worst_train_ppl')
-        train_size = len(self.train_data)
+        len(self.train_data)
         if len(train_df) == 0:
             logger.info(f"train dataset: (following lines)\n{train_df!r}")
             logger.info("nothing to train, finishing the training")
@@ -1173,7 +1173,7 @@ class Trainer:
                     long_data = long_data.sort_values(['len'])
                     long_data = long_data[::-1][:len(fallback_batches)]
                     #long_repr = repr(long_data[['len_x', 'len_t', 'cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
-                    long_repr = repr(long_data[self.len_fields + ['cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
+                    long_repr = repr(long_data[[*self.len_fields, 'cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
                     logger.debug("long training samples:\n" + long_repr)
                     logger.info(f"dropping {len(long_data)} training examples with too long sentences")
                     train_df.drop(long_data.index, inplace=True)
@@ -1317,7 +1317,6 @@ class Trainer:
 
     def save_status(self, workdir, record=None):
         recdir = workdir
-        device = self.model.device
         if record:
             #recdir = os.path.join(workdir, record)
             recdir = os.path.join(workdir, 'record.'+record)
@@ -1456,9 +1455,13 @@ class Trainer:
         ### buffering if necessary
         if args.train_file:
             try:
-                open(args.train_file).seek(0)
+                # パスでない (PastedFile 等) 場合は TypeError、開けない場合は
+                # OSError になる。いずれもシーク不可として扱う。
+                # 元実装はハンドルを閉じていなかった
+                with open(args.train_file) as probe:
+                    probe.seek(0)
                 seekable = True
-            except:
+            except (OSError, TypeError, ValueError):
                 seekable = False
             dprint(seekable)
             if not seekable:
@@ -1652,7 +1655,7 @@ class Trainer:
             if args.batch_size < 0:
                 args.batch_size = max(cdata.train.batch_size+args.batch_size, cdata.train.min_batch_size)
         #params = config.to_dict(flat=True, upstream=True)
-        params = dict((key, val) for key, val in params.items() if key not in ignore and val is not None)
+        params = {key: val for key, val in params.items() if key not in ignore and val is not None}
         #for key, val in config.to_dict(flat=True, upstream=True).items():
         for key, val in config.to_dict(flat=True).items():
             if key in ignore:
@@ -1665,7 +1668,7 @@ class Trainer:
         params = cls.Model.get_config(**params)
         dprint(params)
         if 'preset_choices' in params:
-            PRESET_CHOICES = ['ref', 'reference'] + sorted(params['preset_choices'])
+            PRESET_CHOICES = ['ref', 'reference', *sorted(params['preset_choices'])]
             #dprint(PRESET_CHOICES)
         #dprint(config.to_json(indent=2, upstream=True))
         config.get('model.//')
@@ -1978,7 +1981,7 @@ def main(Trainer, modelname):
     args = main_parser.parse_args()
     if args.help:
         if args.debug:
-            c = logging.using_config(target_loggers, debug=True)
+            logging.using_config(target_loggers, debug=True)
         # reconstruct parser with model-specific default values
         dprint(args)
         config = Trainer.update_config(None, args)
@@ -1990,7 +1993,7 @@ def main(Trainer, modelname):
 
     # setting debug mode
     if args.debug:
-        c = logging.using_config(target_loggers, debug=True)
+        logging.using_config(target_loggers, debug=True)
         for l in target_loggers:
             l = logging.getLogger(l)
         dprint(args)
@@ -2113,7 +2116,9 @@ def main(Trainer, modelname):
     else:
         try:
             #for status.epoch in range(status.epoch+1, args.max_epochs+1):
-            for status.epoch in range(status.epoch+1, args.num_epochs+1):
+            # ruff B020 は誤検出。range() はループ開始前に一度だけ評価される。
+            # status への代入は、中断時に再開位置を保存するための意図的な設計
+            for status.epoch in range(status.epoch+1, args.num_epochs+1):  # noqa: B020
                 if trainer.train_epoch(args):
                     pass #ok
                 else:
@@ -2130,8 +2135,10 @@ def main(Trainer, modelname):
                         torch.cuda.empty_cache()
                         torch.cuda.reset_max_memory_allocated()
                         torch.cuda.reset_max_memory_cached()
-                    except:
-                        pass
+                    except Exception as exc:
+                        # 後片付けの失敗で終了処理を止めない。ただし
+                        # 握り潰さず記録は残す
+                        logger.debug(f"failed to release CUDA memory: {exc!r}")
                 if args.save_models:
                     status.epoch -= 1
                     trainer.save_latest_status()

@@ -18,6 +18,25 @@
 
 ### Fixed
 
+`lpu_nn.modeling.__all__` listed `match_ranker` and `re2`, which are not
+ported, so `from lpu_nn.modeling import *` raised. Both `__all__` lists now
+match what the packages actually export.
+
+`FieldMap.load` carried a block copied from `FieldMap.train` that logged
+"feeding corpus" and computed a path it never used. It has been removed.
+
+Four methods took a mutable default argument, and two of them passed it
+straight to `dict.update`. The bare `except` clauses now name the exception
+they mean to catch: a signature mismatch when probing `init_weights`, a
+failure to seek a non-seekable input (which also leaked its file handle),
+and a label that does not parse as a number.
+
+`ModuleConnection` reads an `init_gamma` parameter that `get_parameters`
+computes a default for, but nothing applies it: the scaled LayerNorm gain
+initialization was lost in a refactor, so passing the parameter has no
+effect. Restoring it would change how every model initializes, so it is
+documented in place rather than changed silently.
+
 The original code had no tests and had not been run since 2020. The
 following defects were found and fixed while making it run again.
 

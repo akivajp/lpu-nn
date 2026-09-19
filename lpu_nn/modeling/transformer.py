@@ -229,7 +229,7 @@ class MultiHeadAttention(modeling.Module):
         return attention
 
     def forward(self, query_seq, key_seq, value_seq, mask, offset=0):
-        batch_size, batch_src_len, hidden_size = value_seq.shape
+        batch_size, batch_src_len, _hidden_size = value_seq.shape
         _, batch_trg_len, _ = query_seq.shape
         self_attention = (query_seq is key_seq)
         assert value_seq.shape == key_seq.shape
@@ -288,7 +288,7 @@ class PositionalEncoder(modeling.Module):
     #def __call__(self, shape, step=0, remember=True):
     def forward(self, shape, step=0, remember=True):
         #batch_size, seq_len, embed_size = shape
-        batch_size, seq_len, hidden_size = shape
+        _batch_size, seq_len, hidden_size = shape
         #start = 0
         start = 1
         last_encoding = None
@@ -330,7 +330,7 @@ class ModuleConnection(modeling.Module):
         params = self.get_parameters(**params)
         self.dropout_ratio = params['dropout_ratio']
         super().__init__()
-        init_gamma = params.get('init_gamma')
+        params.get('init_gamma')
         self.pre  = params['sublayer_preprocess']
         self.post = params['sublayer_postprocess']
         self.mod_norm = nn.LayerNorm(layer_size)
@@ -340,6 +340,15 @@ class ModuleConnection(modeling.Module):
         params.setdefault('dropout_ratio', 0.1)
         if params.get('num_layers'):
             num_layers = params['num_layers']
+            # NOTE: get_parameters computes this default, but nothing applies
+            # it to mod_norm: the scaled LayerNorm gain initialization was
+            # lost in a refactor. Passing init_gamma therefore has no effect
+            # today. Restoring it would change how models initialize, so it is
+            # left as it is rather than changed silently.
+            # (既定値は算出されるものの mod_norm へ適用する箇所が無く、
+            #  LayerNorm のゲイン初期化のスケーリングはリファクタで失われて
+            #  いる。現状 init_gamma を渡しても効果は無い。復活させると
+            #  モデルの初期化が変わるため、黙って変更せずそのままにする)
             init_gamma = 1.0 * (num_layers ** -0.5)
             params.setdefault('init_gamma', init_gamma)
         ### operation order, 'd' -> dropout, 'a' -> residual connection, 'n' -> normalization
@@ -415,7 +424,7 @@ class Transformer(modeling.Module):
 
     def prepare_features(self, seq=None, **features):
         #dprint(y)
-        prev_seq = features.get('prev_seq')
+        features.get('prev_seq')
         if seq is not None:
             if seq.dim() == 2:
                 features['id_seq'] = seq # (B, L)
@@ -558,9 +567,8 @@ class MultiStepTransformer(modeling.Module):
         return params
 
     def add_positional_encoding(self, seq, **features):
-        device = seq.device
         #batch_size, len_seq, embed_size = seq.shape
-        batch_size, len_seq, hidden_size = seq.shape
+        _batch_size, len_seq, hidden_size = seq.shape
         if self.embed_positions:
             if 'prev_seq' in features:
                 start = features['prev_seq'].shape[1]
@@ -576,7 +584,7 @@ class MultiStepTransformer(modeling.Module):
             if 'all_seq' in features:
                 #dprint(features['all_seq']
                 #shape = features['all_seq'].shape + (embed_size,)
-                shape = features['all_seq'].shape + (hidden_size,)
+                shape = (*features['all_seq'].shape, hidden_size)
                 all_pos_enc = self.mod_encode_pos(shape)
                 #all_pos_enc = self.mod_encode_pos(shape).to(device)
                 pos_enc = all_pos_enc[:,-len_seq:None,:]
@@ -634,7 +642,7 @@ class MultiStepTransformer(modeling.Module):
     def set_state(self, state):
         if state is None:
             return self.reset_state()
-        for i, layer_state in enumerate(state):
+        for i, _layer_state in enumerate(state):
             #self.mod_trans[i].set_state(state)
             #self.mods_trans[i].set_state(state)
             self.mods_transform[i].set_state(state[i])
@@ -705,9 +713,7 @@ class Encoder(modeling.Module):
         #features = self.prepare_features(x=x_seq, **features)
         features = self.prepare_features(seq=seq, **features)
         #batch_size, len_x = x_seq.shape
-        batch_size, len_seq = seq.shape
-        embed_size = self.embed_size
-        hidden_size = self.hidden_size
+        _batch_size, _len_seq = seq.shape
         #x_seq_emb = self.mod_embed_tok(x_seq) * (embed_size ** 0.5)
         #seq_emb = self.mod_embed_tok(seq) * (embed_size ** 0.5)
         seq_emb = self.mod_embed_tok(seq)
@@ -808,7 +814,6 @@ class Decoder(modeling.Module):
         if hasattr(self, 'mod_memory2hidden'):
             memory = self.mod_memory2hidden(memory)
         features = self.prepare_features(seq=seq, **features)
-        embed_size = self.embed_size
         #seq_emb = self.mod_embed_tok(seq) * (embed_size ** 0.5)
         seq_emb = self.mod_embed_tok(seq)
         if hasattr(self, 'mod_embed2hidden'):

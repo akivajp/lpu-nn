@@ -172,7 +172,6 @@ class Seq2SeqTrainer(training.Trainer):
     def feed_one_batch(self, batch, fallback=False, df=None):
         padding = self.model.padding
         cdata = self.config.data
-        dtype = self.model.dtype
 
         if self.model.training:
             if cdata.model.max_steps is not None:
@@ -308,7 +307,6 @@ class Seq2SeqTrainer(training.Trainer):
             return eval_report
 
     def test_sample(self, sample, msg):
-        vocab = self.model.vocab
         cdata = self.config.data
         logger.info(msg)
         #logger.info('  index: {}'.format(sample.index))

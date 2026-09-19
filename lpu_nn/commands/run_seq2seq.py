@@ -29,7 +29,7 @@ def main():
 
     args = parser.parse_args()
     if args.debug:
-        logging_conf = logging.using_config(['__main__', 'common', 'models'], debug=True)
+        logging.using_config(['__main__', 'common', 'models'], debug=True)
         dprint(args)
 
     trainer = train_seq2seq.Seq2SeqTrainer().load_status(args.model)

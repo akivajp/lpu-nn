@@ -95,11 +95,10 @@ class LSTMEncoder(modeling.Module):
     #def forward(self, x_seq, **features):
     def forward(self, seq, **features):
         #batch_size, len_x = x_seq.shape
-        batch_size, len_seq = seq.shape
+        _batch_size, _len_seq = seq.shape
         #mask_x = features.get('mask_x')
         #mask_mem = features.get('mask_mem')
         mask_mem = features['mask_mem'] # mandatory
-        embed_size = self.embed_size
         #x_seq_emb = self.mod_embed_tok(x_seq) * (embed_size ** 0.5)
         #x_seq_emb = torch.dropout(x_seq_emb, self.dropout_ratio, self.training)
         #seq_emb = self.mod_embed_tok(seq) * (embed_size ** 0.5)
@@ -233,7 +232,6 @@ class LSTMDecoder(modeling.Module):
         seq_emb = self.mod_embed_tok(seq)
         seq_emb = torch.dropout(seq_emb, self.dropout_ratio, self.training)
         #mask = y != self.padding
-        mask_seq = seq != self.padding
         if self.input_feeding:
             input_feed = self.last_state.get('input_feed')
             #input_feed = self.input_feed
@@ -440,7 +438,7 @@ class EncoderDecoder(modeling.Module):
         start = time.time()
         with torch.no_grad():
             x_id_seq = self.prepare_batch(x)
-            batch_size, len_x = x_id_seq.shape
+            batch_size, _len_x = x_id_seq.shape
             self.reset_state()
             #features = self.prepare_features(x=x_id_seq)
             features = self.prepare_features(seq_enc=x_id_seq)
@@ -449,7 +447,7 @@ class EncoderDecoder(modeling.Module):
             y_id_seq = y[:,None] # (B, 1)
             stopped = torch.tensor([False] * batch_size).to(device) # (B,)
             try:
-                for i in range(max_length):
+                for _i in range(max_length):
                     #if i >= 2:
                     #    break
                     #dprint("-----")
@@ -483,7 +481,7 @@ class EncoderDecoder(modeling.Module):
         with torch.no_grad():
             x_id_seq = self.prepare_batch(x)
             features = self.prepare_features(seq_enc=x_id_seq)
-            batch_size, len_x = x_id_seq.shape
+            batch_size, _len_x = x_id_seq.shape
             if batch_size > 1:
                 dprint(x_id_seq.shape)
                 raise ValueError("beam search currently supports only for sequences with input batch size 1")
@@ -495,7 +493,7 @@ class EncoderDecoder(modeling.Module):
             for i in range(1, int(max_length)):
                 candidates = []
                 dprint(i)
-                prev_scores, list_y_id_seq, state_list = zip(*nbest_incomp_list)
+                prev_scores, list_y_id_seq, state_list = zip(*nbest_incomp_list, strict=False)
                 #dprint(format_state_list(state_list))
                 batch_size = len(list_y_id_seq)
                 batch_state = stack_state_list(state_list)
@@ -525,7 +523,7 @@ class EncoderDecoder(modeling.Module):
                     trg_id_seq = list_y_id_seq[i]
                     log_probs = array_log_probs[i]
                     sample_state = state_list[i]
-                    best_values, best_indices = log_probs.topk(beam_width, dim=0, largest=False)
+                    _best_values, best_indices = log_probs.topk(beam_width, dim=0, largest=False)
                     indices = best_indices.tolist()
                     if self.vocab.eos in indices:
                         sent_score = prev_score + float(log_probs[self.vocab.eos])
@@ -541,7 +539,7 @@ class EncoderDecoder(modeling.Module):
                     if self.vocab.eos in indices:
                         indices.remove(self.vocab.eos)
                     scores = log_probs[indices]
-                    for index, score in zip(indices, scores.tolist()):
+                    for index, score in zip(indices, scores.tolist(), strict=False):
                         vocab_ids = torch.tensor([index]).to(device)
                         trg_id_seq_concat = torch.cat([trg_id_seq, vocab_ids], dim=0)
                         if repetition_cost > 0:
@@ -560,7 +558,7 @@ class EncoderDecoder(modeling.Module):
                     sent_comp = self.vocab.decode(id_seq) + "</s>"
                     #sent_comp = self.vocab.convert(id_seq, 'tokens') + ["</s>"]
                     dprint( (score, sent_comp) , )
-                for score, id_seq, sample_state in nbest_incomp_list[:5]:
+                for score, id_seq, _sample_state in nbest_incomp_list[:5]:
                     sent_incomp = self.vocab.decode(id_seq.data.tolist())
                     #sent_incomp = self.vocab.convert(id_seq.data.tolist(), 'tokens')
                     dprint( (score, sent_incomp), )

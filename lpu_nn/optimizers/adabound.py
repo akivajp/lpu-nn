@@ -55,11 +55,11 @@ class AdaBound(Optimizer):
             raise ValueError(f"Invalid final learning rate: {final_lr}")
         if not 0.0 <= gamma < 1.0:
             raise ValueError(f"Invalid gamma parameter: {gamma}")
-        defaults = dict(lr=lr, betas=betas, final_lr=final_lr, gamma=gamma, eps=eps,
-                        weight_decay=weight_decay, amsbound=amsbound)
+        defaults = {"lr": lr, "betas": betas, "final_lr": final_lr, "gamma": gamma, "eps": eps,
+                        "weight_decay": weight_decay, "amsbound": amsbound}
         super().__init__(params, defaults)
 
-        self.base_lrs = list(map(lambda group: group['lr'], self.param_groups))
+        self.base_lrs = [group['lr'] for group in self.param_groups]
 
     def __setstate__(self, state):
         super().__setstate__(state)
@@ -76,7 +76,7 @@ class AdaBound(Optimizer):
         if closure is not None:
             loss = closure()
 
-        for group, base_lr in zip(self.param_groups, self.base_lrs):
+        for group, base_lr in zip(self.param_groups, self.base_lrs, strict=False):
             for p in group['params']:
                 if p.grad is None:
                     continue
@@ -169,11 +169,11 @@ class AdaBoundW(Optimizer):
         #    raise ValueError("Invalid final learning rate: {}".format(final_lr))
         if not 0.0 <= gamma < 1.0:
             raise ValueError(f"Invalid gamma parameter: {gamma}")
-        defaults = dict(lr=lr, betas=betas, final_lr=final_lr, gamma=gamma, eps=eps,
-                        weight_decay=weight_decay, amsbound=amsbound)
+        defaults = {"lr": lr, "betas": betas, "final_lr": final_lr, "gamma": gamma, "eps": eps,
+                        "weight_decay": weight_decay, "amsbound": amsbound}
         super().__init__(params, defaults)
 
-        self.base_lrs = list(map(lambda group: group['lr'], self.param_groups))
+        self.base_lrs = [group['lr'] for group in self.param_groups]
 
     def __setstate__(self, state):
         super().__setstate__(state)
@@ -190,7 +190,7 @@ class AdaBoundW(Optimizer):
         if closure is not None:
             loss = closure()
 
-        for group, base_lr in zip(self.param_groups, self.base_lrs):
+        for group, base_lr in zip(self.param_groups, self.base_lrs, strict=False):
             for p in group['params']:
                 if p.grad is None:
                     continue

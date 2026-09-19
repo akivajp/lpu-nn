@@ -62,10 +62,10 @@ class UniversalTransformer(modeling.Module):
 
     def add_positional_encoding(self, seq, step, **features):
         #batch_size, len_seq, embed_size = seq.shape
-        batch_size, len_seq, hidden_size = seq.shape
+        _batch_size, len_seq, _hidden_size = seq.shape
         if 'all_seq' in features:
             #shape = features['all_seq'].shape + (self.embed_size,)
-            shape = features['all_seq'].shape + (self.hidden_size,)
+            shape = (*features['all_seq'].shape, self.hidden_size)
             all_pos_enc = self.mod_encode_pos(shape, step=step)
             pos_enc = all_pos_enc[:,-len_seq:None]
         else:
@@ -77,12 +77,11 @@ class UniversalTransformer(modeling.Module):
     def forward(self, seq_input, memory=None, mask_self=None, mask_combine=None, **features):
         device = self.device
         dtype  = self.dtype
-        batch_size, seq_len, hidden_size = seq_input.shape
+        batch_size, seq_len, _hidden_size = seq_input.shape
         seq = seq_input
         max_steps = features.get('max_steps')
         if max_steps is None:
             max_steps = self.max_steps
-        new_state = []
         if self.recurrence.lower() in ['act', 'act-prob', 'act-accum']:
             work_len = seq_len
             #zeros = torch.zeros([batch_size, work_len]).to(device, dtype)
