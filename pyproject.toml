@@ -121,6 +121,7 @@ files = [
     "lpu_nn/common/args.py",
     "lpu_nn/common/criteria.py",
     "lpu_nn/common/dataset.py",
+    "lpu_nn/common/initialization.py",
     "lpu_nn/common/files.py",
     "lpu_nn/common/utils.py",
     "lpu_nn/common/vocab.py",
@@ -131,6 +132,7 @@ files = [
     "lpu_nn/modeling/linear.py",
     "lpu_nn/modeling/lstm.py",
     "lpu_nn/modeling/module.py",
+    "lpu_nn/modeling/universal_transformer.py",
 ]
 follow_imports = "silent"
 check_untyped_defs = true

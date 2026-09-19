@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# system
+from typing import Any, cast
+
 # 3rd
 import torch
 from torch import nn
@@ -13,7 +16,7 @@ logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
 class UniversalTransformer(modeling.Module):
-    def __init__(self, **params):
+    def __init__(self, **params: Any) -> None:
         super().__init__()
         # parameters
         params = self.get_config(**params)
@@ -40,9 +43,12 @@ class UniversalTransformer(modeling.Module):
             self.mod_encode_pos = transformer.PositionalEncoder()
         else:
             self.mod_encode_pos = mod_encode_pos
+        # reset_state() を呼ぶまで last_state が存在せず、構築直後の
+        # forward は AttributeError になっていた
+        self.last_state: dict[Any, Any] = {}
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
         params.setdefault('act_output', 'accum')
@@ -56,11 +62,14 @@ class UniversalTransformer(modeling.Module):
         params = transformer.Transformer.get_config(**params)
         return params
 
-    def init_weights(self):
-        nn.init.orthogonal_(self.mod_halt[0].weight)
-        self.mod_halt[0].bias.data = torch.tensor([1.0])
+    def init_weights(self) -> None:
+        nn.init.orthogonal_(cast(nn.Linear, self.mod_halt[0]).weight)
+        # 新しいテンソルを割り当てると配置先と dtype が失われるため、
+        # 既存のバイアスをその場で埋める
+        cast(nn.Linear, self.mod_halt[0]).bias.data.fill_(1.0)
 
-    def add_positional_encoding(self, seq, step, **features):
+    def add_positional_encoding(self, seq: torch.Tensor, step: int,
+                                **features: Any) -> torch.Tensor:
         #batch_size, len_seq, embed_size = seq.shape
         _batch_size, len_seq, _hidden_size = seq.shape
         if 'all_seq' in features:
@@ -74,7 +83,10 @@ class UniversalTransformer(modeling.Module):
         seq = torch.dropout(seq, self.dropout_ratio, self.training)
         return seq
 
-    def forward(self, seq_input, memory=None, mask_self=None, mask_combine=None, **features):
+    def forward(self, seq_input: torch.Tensor, memory: "torch.Tensor | None" = None,
+                mask_self: "torch.Tensor | None" = None,
+                mask_combine: "torch.Tensor | None" = None,
+                **features: Any) -> torch.Tensor:
         device = self.device
         dtype  = self.dtype
         batch_size, seq_len, _hidden_size = seq_input.shape
@@ -84,6 +96,10 @@ class UniversalTransformer(modeling.Module):
             max_steps = self.max_steps
         if self.recurrence.lower() in ['act', 'act-prob', 'act-accum']:
             work_len = seq_len
+            if mask_self is None:
+                # ACT はどの位置がまだ動いているかをマスクから得るため、
+                # マスク無しでは歩数を決められない
+                raise ValueError("the act recurrence requires mask_self")
             #zeros = torch.zeros([batch_size, work_len]).to(device, dtype)
             mask_seq = mask_self[:,-work_len:None,0].reshape(batch_size, work_len)
             #step_seq = torch.zeros([batch_size, work_len]).to(device, dtype)
@@ -156,7 +172,9 @@ class UniversalTransformer(modeling.Module):
                     #dprint(format_state(step_state))
             #ponder_cost = step_seq + remain
             ponder_cost = step_seq.to(dtype) + remain
-            max_ponder = torch.max(step_seq, dim=1)
+            # torch.max(..., dim=) は (values, indices) の組を返すため、
+            # 歩数そのものを残すには values を取り出す
+            max_ponder = torch.max(step_seq, dim=1).values
             self.last_state['ponder_cost'] = ponder_cost
             self.last_state['max_ponder']  = max_ponder
             #dprint(max_steps)
@@ -171,7 +189,15 @@ class UniversalTransformer(modeling.Module):
             for i in range(max_steps):
                 #dprint(features)
                 seq = self.add_positional_encoding(seq, step=i+1, **features)
-                seq = self.transform(seq, memory=memory, mask_self=mask_self, mask_combine=mask_combine, step=i+1, **features)
+                # モジュールは self.mod_transform。self.transform は存在せず、
+                # この分岐は必ず AttributeError になっていた。
+                # 併せて、上の ACT 分岐と同じくステップごとに状態を出し入れ
+                # する。Transformer は呼び出しをまたいで入力を溜め込むため、
+                # これが無いと 2 歩目でマスクの形と合わなくなる
+                step_state = self.last_state.get(i)
+                self.mod_transform.set_state(step_state)
+                seq = self.mod_transform(seq, memory=memory, mask_self=mask_self, mask_combine=mask_combine, step=i+1, **features)
+                self.last_state[i] = self.mod_transform.get_state()
         if hasattr(self, 'mod_norm_output'):
             #logger.debug("--normalize output--")
             #dprint(seq[0,:5,0],)
@@ -180,15 +206,16 @@ class UniversalTransformer(modeling.Module):
             #dprint(seq[0,:5,0],)
         return seq
 
-    def get_state(self):
+    def get_state(self) -> dict[Any, Any]:
         return self.last_state
 
-    def reset_state(self):
+    def reset_state(self) -> "UniversalTransformer":
         self.last_state = {}
         self.mod_transform.reset_state()
         return self
 
-    def set_state(self, state):
+    def set_state(self, state: "dict[Any, Any] | None") -> "UniversalTransformer":
         if state is None:
             return self.reset_state()
         self.last_state = state
+        return self

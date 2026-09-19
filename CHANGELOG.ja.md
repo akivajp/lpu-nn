@@ -30,6 +30,23 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`universal_transformer` は単独では import できませんでした。`transformer`
+がモジュールレベルでこれを import し、こちらも `transformer` を import し
+返すため、先に読み込まれた方が `ImportError` になります。他の経路がたまたま
+先に `transformer` へ到達していたために表面化していませんでした。逆向きの
+辺を、利用箇所での局所 import に変更しました。
+
+`UniversalTransformer` は `last_state` を初期化しておらず、構築直後の
+forward は手動で `reset_state()` を呼ばない限り `AttributeError` に
+なりました。コマンドラインが提供する 4 つのうちの 1 つである
+`recurrence='basic'` の分岐は、存在しない `self.transform` を呼んでおり、
+さらに ACT 分岐にあるステップごとの状態管理を欠いていました。これが無いと
+Transformer がステップを跨いで入力を溜め込み、2 歩目で注意マスクの形が
+合わなくなります。`max_ponder` は歩数ではなく `torch.max` が返す
+`(values, indices)` の組を保存しており、`init_weights` は停止バイアスを
+その場で埋めるのではなく、新しい CPU / float32 のテンソルで置き換えて
+いました。
+
 `ContextualStringEmbedding` は構築すらできませんでした。`nn.Module.__init__`
 を呼ばないままサブモジュールを代入しており、PyTorch がこれを拒みます。
 その先でも、`forward` が 3 次元のテンソルを `dim=3` で連結しようとし、

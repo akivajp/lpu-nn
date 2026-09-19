@@ -14,9 +14,11 @@ from lpu_nn.common.utils import make_history_mask
 from lpu_nn.common.utils import purge_tensor
 from lpu_nn import modeling
 from lpu_nn.modeling import embeddings
+# universal_transformer は transformer を import するため、ここで
+# 読み込むと循環 import になる (universal_transformer を先に読み込んだ
+# 場合に ImportError)。利用箇所で遅延 import する。
 from lpu_nn.modeling.activation import get_activator
 from lpu_nn.modeling.activation import get_gain
-from lpu_nn.modeling.universal_transformer import UniversalTransformer
 
 logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
@@ -675,6 +677,7 @@ class Encoder(modeling.Module):
         #params['combine'] = False
         params['conditioned'] = False
         if self.universal:
+            from lpu_nn.modeling.universal_transformer import UniversalTransformer
             self.mod_transform = UniversalTransformer(**params)
         else:
             self.mod_transform = MultiStepTransformer(**params)
@@ -694,6 +697,7 @@ class Encoder(modeling.Module):
         params.setdefault('dropout_ratio', 0.1)
         params.setdefault('universal', False)
         if params['universal']:
+            from lpu_nn.modeling.universal_transformer import UniversalTransformer
             params = UniversalTransformer.get_config(**params)
         else:
             if params.get('num_encoder_layers') is None:
@@ -757,6 +761,7 @@ class Decoder(modeling.Module):
         mod_embed_tok  = hparams.get('shared_embed_tok')
         hparams['conditioned'] = True
         if self.universal:
+            from lpu_nn.modeling.universal_transformer import UniversalTransformer
             self.mod_transform = UniversalTransformer(**hparams)
         else:
             self.mod_transform = MultiStepTransformer(**hparams)
@@ -788,6 +793,7 @@ class Decoder(modeling.Module):
         params.setdefault('share_embedding', True)
         params.setdefault('universal', False)
         if params['universal']:
+            from lpu_nn.modeling.universal_transformer import UniversalTransformer
             params = UniversalTransformer.get_config(**params)
         else:
             if params.get('num_decoder_layers') is None:

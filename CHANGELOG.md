@@ -31,6 +31,23 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`universal_transformer` could not be imported on its own: `transformer`
+imports it at module level and it imports `transformer` back, so whichever
+came first raised `ImportError`. It worked only because every other path
+happened to reach `transformer` first. The back edge is a local import at
+its two use sites now.
+
+`UniversalTransformer` never initialized `last_state`, so a forward pass
+on a freshly constructed module raised `AttributeError` unless
+`reset_state()` had been called by hand. Its `recurrence='basic'` branch,
+one of the four the command line offers, called `self.transform`, which
+does not exist, and lacked the per-step state handling the ACT branch has;
+without it the transformer accumulates its inputs across steps and the
+attention mask stops matching on the second one. `max_ponder` stored the
+`(values, indices)` pair that `torch.max` returns rather than the step
+counts, and `init_weights` replaced the halting bias with a fresh CPU
+float32 tensor instead of filling the existing one.
+
 `ContextualStringEmbedding` could not be constructed: it assigned its
 submodules without calling `nn.Module.__init__` first, which PyTorch
 refuses. Past that, `forward` concatenated along `dim=3` tensors that have

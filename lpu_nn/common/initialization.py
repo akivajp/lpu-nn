@@ -4,7 +4,11 @@
     Weight initialization functions
 """
 
+# system
+from typing import cast
+
 # 3rd
+import torch
 from torch import nn
 
 # local
@@ -16,10 +20,12 @@ from lpu_nn.modeling.embeddings import Embedding
 logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
-def init_weights(m, name=None):
-    """
-    :param nn.Module m: any module
-    :return: None
+def init_weights(m: nn.Module, name: "str | None" = None) -> None:
+    """Initialize one module according to its type
+
+    モジュール 1 つを、その種類に応じて初期化する。
+    最適な初期化は活性化関数に依存するため、自前の init_weights を
+    持つモジュールにはそれを任せる。
     """
     #dprint(m)
     # optimal initialization depends on activation functions
@@ -28,15 +34,18 @@ def init_weights(m, name=None):
         nn.Conv1d,
         nn.Conv2d,
     ]
-    if hasattr(m, 'init_weights'):
+    # nn.Module の属性探索は Tensor | Module として型付けされるため、
+    # 呼び出す対象は一度ローカルに取り出す
+    own_initializer = getattr(m, 'init_weights', None)
+    if callable(own_initializer):
         if not isinstance(m, (Embedding,Linear,SequenceConvolution1d)):
             logger.debug(f"initializing {m.__class__.__name__} weights")
         try:
-            m.init_weights(name=name)
+            own_initializer(name=name)
         except TypeError:
             # init_weights は name を取るものと取らないものがあるため、
             # 署名の不一致だけを捉えて引数無しで呼び直す
-            m.init_weights()
+            own_initializer()
     elif isinstance(m, nn.Embedding):
         logger.debug("initializing Embedding weight orthogonally")
         nn.init.orthogonal_(m.weight)
@@ -48,13 +57,13 @@ def init_weights(m, name=None):
         pass
     else:
         if hasattr(m, 'weight'):
-            if m.weight.dim() > 1:
+            weight = cast(torch.Tensor, m.weight)
+            if weight.dim() > 1:
                 logger.debug(f"initializing unknown ({m.__class__.__name__}) weight orthogonally")
-                nn.init.orthogonal_(m.weight)
+                nn.init.orthogonal_(weight)
                 #nn.init.xavier_uniform_(m.weight)
-        pass
 
-def init_lstm_weights(m):
+def init_lstm_weights(m: nn.Module) -> None:
     for key, param in m.named_parameters():
         if key.find('weight_ih') == 0:
             hsize = param.shape[0] // 4
@@ -69,7 +78,7 @@ def init_lstm_weights(m):
         else:
             param.data.fill_(0)
 
-def apply_init_weights(top):
+def apply_init_weights(top: nn.Module) -> None:
     logger.info("initializing module parameters:")
     for name, module in top.named_modules():
         #logger.info("  module: {}, {}".format(name, module.__class__.__name__))
