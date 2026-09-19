@@ -31,6 +31,13 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`build_batches` and `reduce_batch_size` fell off the end and returned
+`None` for a batch type they did not recognize, which the caller then
+tried to iterate or index. They name the type they were given now.
+
+`set_logfile_handler` removed the previous handler without closing it or
+the file behind it.
+
 The logger names the trainer configures, `target_loggers`, were the
 top-level module names from before the port: `common`, `modeling`,
 `optimizers`. Logger names are dotted, so a name only reaches the loggers

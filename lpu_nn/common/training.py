@@ -19,6 +19,7 @@ from collections import defaultdict
 from collections import OrderedDict
 from lpu_nn.common.args import strtobool
 from gettext import gettext as _
+from collections.abc import Iterator
 from typing import Any
 
 # 3rd party
@@ -183,19 +184,32 @@ target_loggers = ['__main__', 'lpu_nn', 'lpu']
 
 LIST_K_FOR_RECALL = [1, 5, 10, 20, 50, 100]
 
-def set_logfile_handler(logpath):
+def set_logfile_handler(logpath: str) -> None:
+    """Send the target loggers to the given file
+
+    対象のロガーの出力を、指定したファイルへ流す。
+    """
     global logfile_handler
     if logfile_handler is not None:
         for name in target_loggers:
             l = logging.getLogger(name)
             l.removeHandler(logfile_handler)
+        # 外したハンドラと、その先のファイルを閉じる (以前は開いたままだった)
+        logfile_handler.close()
     logfile_handler = logging.StreamHandler(open(logpath, 'a', encoding='utf-8', errors='backslashreplace'))
     for name in target_loggers:
         l = logging.getLogger(name)
         l.addHandler(logfile_handler)
         logging.colorize(l)
 
-def format_time(seconds):
+def format_time(seconds: float) -> str:
+    """Render a duration as a compact string
+
+    経過時間を短い文字列に整形する。
+
+    1 日を超える場合は秒を付けない。ちょうど 60 秒は "1M" ではなく
+    "60S" になるが、表示のみに用いるためそのままにしている。
+    """
     s = ""
     remain = seconds
     if remain > 60 * 60 * 24:
@@ -213,7 +227,7 @@ def format_time(seconds):
         s += f"{math.floor(remain):d}S"
     return s
 
-def setup_optimizer(config, model):
+def setup_optimizer(config: Any, model: Any) -> Any:
     cdata = config.data
     optimizer_name = cdata.train.optimizer
     cdata.train.optimizer = optimizer_name = str(optimizer_name).lower()
@@ -286,18 +300,23 @@ def setup_optimizer(config, model):
         optimizer = optimizers.SGD(param_groups, lr=cdata.train.sgd_learning_rate)
     return optimizer
 
-def get_record_name(model_path):
+def get_record_name(model_path: str) -> "str | None":
+    """Extract the record name out of a checkpoint path
+
+    チェックポイントのパスから記録名を取り出す。
+    例: 'workdir/record.best_dev_loss' -> 'best_dev_loss'
+    """
     found = re.findall('record.([a-z_]*)', model_path)
     if found:
         record = found[0]
         return record
     return None
 
-def build_batches_by_samples(df, batch_size):
+def build_batches_by_samples(df: pd.DataFrame, batch_size: int) -> "Iterator[pd.DataFrame]":
     for i in range(0, len(df), batch_size):
         yield df[i:i+batch_size]
 
-def build_batches_by_tokens(df, batch_size):
+def build_batches_by_tokens(df: pd.DataFrame, batch_size: int) -> "Iterator[pd.DataFrame]":
     batch_items = []
     num_tokens = 0
     for _i, row in df.iterrows():
@@ -310,13 +329,31 @@ def build_batches_by_tokens(df, batch_size):
     if len(batch_items) > 0:
         yield pd.DataFrame(batch_items)
 
-def build_batches(df, batch_size, batch_type = 'samples'):
+def build_batches(df: pd.DataFrame, batch_size: int,
+                  batch_type: str = 'samples') -> "Iterator[pd.DataFrame]":
+    """Split a dataframe into batches of samples or of tokens
+
+    データフレームをサンプル単位またはトークン単位のバッチへ分割する。
+
+    An unknown batch type used to fall off the end and return None, which
+    the caller then tried to iterate.
+
+    未知の種別では末尾に抜けて None を返しており、呼び出し側がそれを
+    反復しようとしていた。
+    """
     if batch_type == 'samples':
         return build_batches_by_samples(df, batch_size)
     elif batch_type == 'tokens':
         return build_batches_by_tokens(df, batch_size)
+    raise ValueError(f"unknown batch type: {batch_type!r}")
 
-def reduce_batch_size(batch, batch_size, batch_type):
+def reduce_batch_size(batch: pd.DataFrame, batch_size: int,
+                      batch_type: str) -> pd.DataFrame:
+    """Shrink one batch to fit the given size
+
+    1 つのバッチを指定した大きさに収まるまで縮める。
+    メモリ不足からの再試行で使う。
+    """
     if batch_type == 'samples':
         return batch[:batch_size]
     elif batch_type == 'tokens':
@@ -326,6 +363,7 @@ def reduce_batch_size(batch, batch_size, batch_type):
             #dprint(batch.len.sum())
             batch.drop(batch.len.idxmax(), inplace=True)
         return batch
+    raise ValueError(f"unknown batch type: {batch_type!r}")
 
 class Trainer:
     # 派生クラスが具体的な設定とモデルクラスで上書きする
