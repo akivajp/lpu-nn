@@ -30,6 +30,19 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`lpu_nn.common.vocab` は独自の `IDMap` / `LabelMap` (古い lpu からの複製で
+その後分岐したもの) と、どこからも使われずかつ動作し得ない `CharacterMap`
+を抱えていました。`CharacterMap` は `decode` / `sample` / `__iter__` が
+コンストラクタで設定されない属性を参照していました。検証済みの実装は
+`lpu.common.vocab` から取るようにし、`CharacterMap` は削除しました
+(あわせて重複コード 380 行が不要になりました)。これらのマップが担っていた
+状態の保存・復元は `FieldMap` 側で引き受けます。
+
+`Vocabulary` は初期化済みかどうかを `hasattr(self, 'symbols')` で判定して
+いたため、記号の ID は `set_symbols` の後にしか存在しませんでした。
+SentencePiece 自身の表現に倣い、未定義を -1 として最初から宣言するように
+しました。
+
 `Dataset.iter` は負の `start` / `stop` を `len(self) - 添字` として解決
 していました。負号が打ち消されて範囲外になるため、負の start を渡すと
 何も返りませんでした。Python の慣習どおり末尾からの位置として扱うように

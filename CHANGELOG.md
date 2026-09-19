@@ -31,6 +31,19 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`lpu_nn.common.vocab` carried its own `IDMap` and `LabelMap`, copied from
+an older lpu and since diverged, plus a `CharacterMap` that nothing used
+and that could not have run: its `decode`, `sample` and `__iter__`
+referred to attributes its constructor never set. The tested
+implementations now come from `lpu.common.vocab`, and `CharacterMap` is
+gone; 380 lines of duplicated code went with them. `FieldMap` keeps the
+state handling those maps used to provide.
+
+`Vocabulary` decided whether it had been initialized by asking
+`hasattr(self, 'symbols')`, so its symbol ids existed only after
+`set_symbols`. They are declared up front now, with -1 for undefined, as
+SentencePiece itself reports it.
+
 `Dataset.iter` resolved a negative `start` or `stop` as
 `len(self) - index`, which cancels the sign and lands past the end, so a
 negative start yielded nothing at all. It now counts from the end, as
