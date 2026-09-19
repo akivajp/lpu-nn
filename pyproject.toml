@@ -120,6 +120,7 @@ select = [
 files = [
     "lpu_nn/common/args.py",
     "lpu_nn/common/criteria.py",
+    "lpu_nn/common/dataset.py",
     "lpu_nn/common/files.py",
     "lpu_nn/common/utils.py",
 ]
@@ -130,10 +131,14 @@ warn_return_any = true
 warn_unused_ignores = true
 strict_equality = true
 
-# torch / pandas ship type information; sentencepiece and nltk do not.
-# (torch と pandas は型情報を同梱するが、sentencepiece と nltk には無い)
+# torch ships type information; these do not. pandas publishes its stubs
+# separately (pandas-stubs), which would be a checking project of its own,
+# so the missing stubs are accepted for now.
+# (torch は型情報を同梱するが、以下は同梱しない。pandas のスタブは
+#  pandas-stubs として別配布であり、その導入は別途の検査作業になるため、
+#  現時点ではスタブ欠落を許容する)
 [[tool.mypy.overrides]]
-module = ["sentencepiece", "nltk.*"]
+module = ["pandas", "pandas.*", "sentencepiece", "nltk.*"]
 ignore_missing_imports = true
 
 [tool.setuptools.dynamic]

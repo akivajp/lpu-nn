@@ -3,7 +3,9 @@
 import csv
 import glob
 import io
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from functools import reduce
+from typing import Any
 
 import pandas as pd
 
@@ -13,32 +15,40 @@ from lpu.common import progress
 logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
-def min_tuple(t1, t2):
+def min_tuple(t1: Sequence[float], t2: Sequence[float]) -> tuple[float, ...]:
     return tuple(min(e1,e2) for e1, e2 in zip(t1,t2, strict=False))
 
-def max_tuple(t1, t2):
+def max_tuple(t1: Sequence[float], t2: Sequence[float]) -> tuple[float, ...]:
     return tuple(max(e1,e2) for e1, e2 in zip(t1,t2, strict=False))
 
-def inter_tuple(t1, t2):
+def inter_tuple(t1: Sequence[float], t2: Sequence[float]) -> tuple[float, ...]:
     return tuple((e1+e2) / 2.0 for e1,e2 in zip(t1,t2, strict=False))
 
-def get_indices(fields, keys):
+def get_indices(fields: Sequence[str], keys: Sequence[str]) -> tuple[int, ...]:
     return tuple(fields.index(key) for key in keys)
 
-def to_float(s, default=-1):
+def to_float(s: Any, default: float = -1) -> float:
     try:
         return float(s)
     except Exception:
         return default
 
-def get_values(fields, indices):
-    #return tuple(float(fields[index]) for index in indices)
-    try:
-        return tuple(to_float(fields[index]) for index in indices)
-    except Exception as e:
-        dprint(e)
-        dprint(fields)
-        dprint(indices)
+def get_values(fields: Sequence[str], indices: Sequence[int]) -> tuple[float, ...]:
+    """Read the named columns of a row as floats
+
+    行の指定列を float として読み出す。
+
+    A missing column used to be swallowed here and reported as an implicit
+    `None`, which then made the caller's comparison fail with a TypeError
+    far from the cause. The caller (`Dataset.load`) already handles a bad
+    row, so the IndexError is left to propagate.
+
+    列が足りない場合、以前はここで握り潰して暗黙の `None` を返しており、
+    呼び出し側の比較が原因から離れた場所で TypeError になっていた。
+    呼び出し側 (`Dataset.load`) には不正な行の処理があるため、IndexError は
+    そのまま送出する。
+    """
+    return tuple(to_float(fields[index]) for index in indices)
 
 #def gen_converters(main_fields):
 #    converters = dict()
@@ -48,10 +58,13 @@ def get_values(fields, indices):
 #    return converters
 
 class Dataset:
-    def __init__(self, path, sep='\t', priority_keys=None):
+    def __init__(self, path: str, sep: str = '\t',
+                 priority_keys: "str | Sequence[str] | None" = None) -> None:
         self.load(path, sep, priority_keys)
 
-    def iter(self, start=None, stop=None, step=None, headers=True, binmode=False):
+    def iter(self, start: "int | None" = None, stop: "int | None" = None,
+             step: "int | None" = None, headers: bool = True,
+             binmode: bool = False) -> "Iterator[Any]":
         if headers:
             if binmode:
                 yield self.str_headers
@@ -59,10 +72,16 @@ class Dataset:
                 yield self.str_headers.decode('utf-8', 'backslashreplace')
         if step is None:
             step = 1
+        # A negative index counts from the end, as elsewhere in Python.
+        # `len(self) - start` cancelled the sign and landed past the end, so
+        # a negative start yielded nothing at all.
+        # (負の添字は Python の慣習どおり末尾からの位置とする。
+        #  `len(self) - start` では負号が打ち消されて範囲外になり、
+        #  負の start では何も返らなかった)
         if isinstance(start, int) and start < 0:
-            start = len(self) - start
+            start = len(self) + start
         if isinstance(stop, int) and stop < 0:
-            stop = len(self) - stop
+            stop = len(self) + stop
         if step >= 1:
             if start is None:
                 start = 0
@@ -88,7 +107,8 @@ class Dataset:
                 yield self.getline(current, binmode)
                 current += step
 
-    def getbuffer(self, start=None, stop=None, step=None, headers=True):
+    def getbuffer(self, start: "int | None" = None, stop: "int | None" = None,
+                  step: "int | None" = None, headers: bool = True) -> io.StringIO:
         buf = io.StringIO()
         for line in self.iter(start, stop, step, headers, binmode=False):
             buf.write(line)
@@ -96,7 +116,7 @@ class Dataset:
         buf.seek(0)
         return buf
 
-    def getline(self, index, binmode=False):
+    def getline(self, index: int, binmode: bool = False) -> "str | bytes":
         pos = self.positions[index]
         self.fobj.seek(pos)
         line = self.fobj.readline().strip()
@@ -105,13 +125,21 @@ class Dataset:
         else:
             return line.decode('utf-8', 'backslashreplace')
 
-    def load(self, path, sep='\t', priority_keys=None):
+    def load(self, path: str, sep: str = '\t',
+             priority_keys: "str | Sequence[str] | None" = None) -> None:
         self.sep = sep
         self.path = path
-        positions1 = []
-        positions2 = []
+        # 行頭のバイト位置だけを保持する (本文はメモリに載せない)
+        positions1: list[int] = []
+        positions2: list[int] = []
         f = progress.FileReader(path)
-        header_line = f.read_byte_line().strip()
+        first_line = f.read_byte_line()
+        if not first_line:
+            # read_byte_line() は入力が尽きると None または空バイト列を返す。
+            # None の場合はヘッダ行の strip() が AttributeError になり、
+            # 空バイト列の場合は列名の無いデータセットが黙って出来ていた
+            raise ValueError(f"the dataset file has no header line: {path}")
+        header_line = first_line.strip()
         self.str_headers = header_line
         self.headers = header_line.decode('utf-8', 'backslashreplace').split(sep)
         if isinstance(priority_keys, str):
@@ -131,8 +159,9 @@ class Dataset:
                 line = line.strip()
                 if line:
                     if priority_keys:
-                        line = line.decode('utf-8', 'backslashreplace')
-                        priority = get_values(line.split(sep), priority_indices)
+                        # 復号後は str になるため、bytes の変数を使い回さない
+                        text = line.decode('utf-8', 'backslashreplace')
+                        priority = get_values(text.split(sep), priority_indices)
                         # fuzzy sorting
                         if len(positions1) == 0:
                             min_priority = priority
@@ -161,31 +190,33 @@ class Dataset:
         self.positions = positions1 + positions2
         self.fobj = open(path, 'rb')
 
-    def save(self, path_or_buffer, start=None, stop=None, step=None):
+    def save(self, path_or_buffer: Any, start: "int | None" = None,
+             stop: "int | None" = None, step: "int | None" = None) -> None:
         if isinstance(path_or_buffer, str):
             path_or_buffer = open(path_or_buffer, 'wb')
         for line in self.iter(start, stop, step, headers=True, binmode=True):
             path_or_buffer.write(line)
             path_or_buffer.write(b"\n")
 
-    def to_df(self, main_fields, start=None, stop=None, step=None):
+    def to_df(self, main_fields: Mapping[str, str], start: "int | None" = None,
+              stop: "int | None" = None, step: "int | None" = None) -> pd.DataFrame:
         buf = self.getbuffer(start, stop, step)
         #converters = gen_converters(main_fields)
         #return pd.read_csv(buf, self.sep, converters=converters, index_col='index')
         # pandas 3.0 で sep の位置引数渡しは廃止された (キーワード必須)
         return pd.read_csv(buf, sep=self.sep, index_col='index')
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: "int | slice") -> Any:
         #print(i)
         if isinstance(i, slice):
             return list(self.iter(i.start, i.stop, i.step, False))
         else:
             return self.getline(i, False)
 
-    def __iter__(self):
+    def __iter__(self) -> "Iterator[Any]":
         return self.iter()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.positions)
 
 #def find_sub(full, sub, index=0):
@@ -208,7 +239,8 @@ class Dataset:
 
 #def build_train_data(main_fields, save_path, train_file, vocab, sep= '\t'):
 #def build_train_data(main_fields, save_path, train_file, vocab, sep= '\t', max_length=None):
-def build_train_data(main_fields, save_path, train_file, sep= '\t', max_length=None):
+def build_train_data(main_fields: Mapping[str, str], save_path: str, train_file: Any,
+                     sep: str = '\t', max_length: "int | None" = None) -> None:
     writer = csv.writer(open(save_path, 'w'), delimiter=sep)
     #header = ['index', 'x', 't', 'len_x', 'len_t', 'cost', 'last_epoch', 'last_step', 'feed_count', 'criterion', 'last_pred']
     #header = ['index', 'x', 't', 'criterion']
@@ -227,8 +259,8 @@ def build_train_data(main_fields, save_path, train_file, sep= '\t', max_length=N
             #fields = line.strip('\n').split(sep)
             #dprint(i)
             #dprint(fields)
-            len_values = []
-            row = []
+            len_values: list[int] = []
+            row: list[Any] = []
             row.append(i)
             too_long = False
             #x = fields[0]
@@ -284,14 +316,14 @@ def build_train_data(main_fields, save_path, train_file, sep= '\t', max_length=N
         logger.info(f"skipped {too_long_count:,d} too long samples")
 
 #def load_eval_data(main_fields, file_or_buffer, vocab, sep='\t'):
-def load_eval_data(main_fields, file_or_buffer, sep='\t'):
+def load_eval_data(main_fields: Mapping[str, str], file_or_buffer: Any,
+                   sep: str = '\t') -> pd.DataFrame:
     #with open(eval_file, 'r') as fobj:
     fobj = file_or_buffer
     if isinstance(file_or_buffer, str):
         fobj = open(file_or_buffer, encoding='utf-8', errors='backslashreplace')
     rows = []
     #converters = gen_converters(main_fields)
-    main_fields.values()
     for _i, line in enumerate(fobj):
         try:
             fields = line.strip().split(sep)
@@ -326,7 +358,8 @@ def load_eval_data(main_fields, file_or_buffer, sep='\t'):
     df.loc[:, 'criterion'] = -1.0
     return df
 
-def merge_tsv_files(tsv_paths, target_path, sep='\t'):
+def merge_tsv_files(tsv_paths: "str | Iterable[str]", target_path: str,
+                    sep: str = '\t') -> None:
     if isinstance(tsv_paths, str):
         tsv_paths = [tsv_paths]
     tsv_paths = reduce(list.__add__, [glob.glob(p) for p in tsv_paths])

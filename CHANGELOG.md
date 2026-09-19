@@ -31,6 +31,22 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`Dataset.iter` resolved a negative `start` or `stop` as
+`len(self) - index`, which cancels the sign and lands past the end, so a
+negative start yielded nothing at all. It now counts from the end, as
+elsewhere in Python.
+
+`Dataset.load` called `.strip()` on the first line without checking it:
+`read_byte_line` returns `None` at the end of the input, so an empty file
+raised an `AttributeError`, and a file that began with a blank line built
+a dataset with no column names at all. It now says which file has no
+header.
+
+`dataset.get_values` swallowed a missing column and returned an implicit
+`None`, which then made the caller's comparison fail with a `TypeError`
+far from the cause. The caller already handles a bad row, so the
+`IndexError` is left to propagate.
+
 `utils.flip` built a list of index tensors and applied it as `t[slices]`,
 working around `torch.flip` not supporting bool CPU tensors in torch 1.3.
 That restriction is long gone, and indexing with a non-tuple sequence is
