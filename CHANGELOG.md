@@ -31,6 +31,23 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`activation.Swish1` called `super(Swish, self).__init__()`, naming a class
+it does not derive from, so `get_activator('swish1')` raised a `TypeError`
+every time. Nothing could have used it.
+
+`SequenceConvolution1d` built its padding on `self.device`, an attribute
+that only exists once `to()` has been called, so a freshly constructed
+module raised `AttributeError` for any n-gram order above 1; and the
+padding stayed float32, so it could not be concatenated with a float16
+sequence. Both now follow the input tensor. Its `init_weights` also
+assumed a bias, which `nn.Conv1d` does not guarantee.
+
+`to()` and `__repr__` were shared by borrowing the unbound methods of
+`Module` from classes that do not derive from it, which works only
+because Python does not check the receiver. They are plain functions now,
+`modeling.apply_to` and `modeling.format_module`, and `format_module`
+skips the `None` entries torch can leave in `_modules`.
+
 `lpu_nn.common.vocab` carried its own `IDMap` and `LabelMap`, copied from
 an older lpu and since diverged, plus a `CharacterMap` that nothing used
 and that could not have run: its `decode`, `sample` and `__iter__`

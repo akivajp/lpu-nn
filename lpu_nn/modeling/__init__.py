@@ -12,10 +12,12 @@ __all__ = [
     'ModuleList',
     'SequenceConvolution1d',
     'activation',
+    'apply_to',
     'attention',
     'convolution',
     'embeddings',
     'encoder_decoder',
+    'format_module',
     'linear',
     'lstm',
     'module',
@@ -27,6 +29,8 @@ from lpu.common import logging
 logger = logging.getColorLogger(__name__)
 
 from .module import Module
+from .module import apply_to
+from .module import format_module
 from .module import ModuleArray
 from .module import ModuleList
 from .linear import Linear

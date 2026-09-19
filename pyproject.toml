@@ -124,6 +124,10 @@ files = [
     "lpu_nn/common/files.py",
     "lpu_nn/common/utils.py",
     "lpu_nn/common/vocab.py",
+    "lpu_nn/modeling/activation.py",
+    "lpu_nn/modeling/convolution.py",
+    "lpu_nn/modeling/linear.py",
+    "lpu_nn/modeling/module.py",
 ]
 follow_imports = "silent"
 check_untyped_defs = true

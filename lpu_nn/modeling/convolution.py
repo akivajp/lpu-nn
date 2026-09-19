@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# system
+from typing import Any
+
 # 3rd
 import torch
 from torch import nn
@@ -14,7 +17,8 @@ logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
 class SequenceConvolution1d(nn.Conv1d):
-    def __init__(self, input_size, output_size, ngram_order, activation=None, **kwargs):
+    def __init__(self, input_size: int, output_size: int, ngram_order: int,
+                 activation: "str | None" = None, **kwargs: Any) -> None:
         self.hparams = kwargs
         self.input_size  = input_size
         self.output_size = output_size
@@ -29,7 +33,7 @@ class SequenceConvolution1d(nn.Conv1d):
         if self.activation not in [None, "none"]:
             self.mod_activate = get_activator(self.activation, self.output_size)
 
-    def init_weights(self, name=None):
+    def init_weights(self, name: "str | None" = None) -> None:
         name = self.__class__.__name__
         initializer = self.hparams.get('initializer')
         #dprint(initializer)
@@ -42,7 +46,8 @@ class SequenceConvolution1d(nn.Conv1d):
             #nn.init.orthogonal_(self.mod_conv.weight, gain=gain)
             nn.init.orthogonal_(self.weight, gain=gain)
             #nn.init.zeros_(self.mod_conv.bias)
-            nn.init.zeros_(self.bias)
+            if self.bias is not None:
+                nn.init.zeros_(self.bias)
         elif initializer in ['he-normal']:
             logger.debug(f"initializing {name} weight with Kaiming He's Normal")
             actual_input_size = self.input_size * self.ngram_order
@@ -50,22 +55,35 @@ class SequenceConvolution1d(nn.Conv1d):
             #nn.init.normal_(self.mod_conv.weight, std=std)
             nn.init.normal_(self.weight, std=std)
             #nn.init.zeros_(self.mod_conv.bias)
-            nn.init.zeros_(self.bias)
+            if self.bias is not None:
+                nn.init.zeros_(self.bias)
         else: # if initilizer in ['pytorch', None]:
             logger.debug(f"initializing {name} weight with PyTorch's default method")
             pass # pytorch default initializer
 
-    def forward(self, seq):
+    def forward(self, seq: torch.Tensor) -> torch.Tensor:
         batch_size, _length, input_size = seq.shape
         n = self.ngram_order
         seq = seq.transpose(1,2) # (B, I, L)
         in_seq = seq
+        # The padding used to be built on `self.device`, an attribute that
+        # only exists once `to()` has been called, so a freshly constructed
+        # module raised AttributeError; and it stayed float32, so it could
+        # not be concatenated with a float16 sequence. Taking both from the
+        # input is correct in either case.
+        # (パディングは `self.device` を見ていたが、この属性は `to()` を
+        #  呼んだ後にしか存在せず、構築直後のモジュールでは AttributeError
+        #  になっていた。また float32 のままなので float16 の系列と連結でき
+        #  なかった。いずれも入力から取れば正しくなる)
         if n == 2:
-            pad_right = torch.zeros([batch_size, input_size, 1]).to(self.device)
+            pad_right = torch.zeros([batch_size, input_size, 1],
+                                    device=seq.device, dtype=seq.dtype)
             in_seq = torch.cat([seq,pad_right], dim=2) # (B, I, L+1)
         elif n >= 3:
-            pad_left  = torch.zeros([batch_size, input_size, (n-1)//2]).to(self.device)
-            pad_right = torch.zeros([batch_size, input_size, n//2]).to(self.device)
+            pad_left  = torch.zeros([batch_size, input_size, (n-1)//2],
+                                    device=seq.device, dtype=seq.dtype)
+            pad_right = torch.zeros([batch_size, input_size, n//2],
+                                    device=seq.device, dtype=seq.dtype)
             in_seq = torch.cat([pad_left,seq,pad_right], dim=2) # (B, I, L+K-1)
         #out_seq = self.mod_conv(in_seq) # (B, O, L)
         out_seq = super().forward(in_seq) # (B, O, L)
@@ -74,5 +92,5 @@ class SequenceConvolution1d(nn.Conv1d):
             out_seq = self.mod_activate(out_seq)
         return out_seq
 
-    def to(self, *args, **kwargs):
-        return modeling.Module.to(self, *args, **kwargs)
+    def to(self, *args: Any, **kwargs: Any) -> "SequenceConvolution1d":
+        return modeling.apply_to(self, *args, **kwargs)

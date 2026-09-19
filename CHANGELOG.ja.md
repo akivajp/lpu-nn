@@ -30,6 +30,23 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`activation.Swish1` は `super(Swish, self).__init__()` と、継承していない
+クラスを渡していたため、`get_activator('swish1')` は毎回 `TypeError` で
+落ちていました。利用できた経路はありません。
+
+`SequenceConvolution1d` はパディングを `self.device` から作っていました。
+この属性は `to()` を呼んだ後にしか存在しないため、構築直後のモジュールは
+n-gram 次数が 2 以上で `AttributeError` になり、さらにパディングが float32
+のままなので float16 の系列と連結できませんでした。いずれも入力テンソルに
+従うようにしました。`init_weights` がバイアスの存在を前提にしていた点も
+修正しました (`nn.Conv1d` はバイアスを保証しません)。
+
+`to()` と `__repr__` は、`Module` を継承していないクラスからその未束縛
+メソッドを借用する形で共有されていました。これは Python が受け手の型を
+検査しないから動いていただけです。通常の関数 `modeling.apply_to` /
+`modeling.format_module` に切り出し、`format_module` は torch が
+`_modules` に残しうる `None` を読み飛ばすようにしました。
+
 `lpu_nn.common.vocab` は独自の `IDMap` / `LabelMap` (古い lpu からの複製で
 その後分岐したもの) と、どこからも使われずかつ動作し得ない `CharacterMap`
 を抱えていました。`CharacterMap` は `decode` / `sample` / `__iter__` が
