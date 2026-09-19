@@ -31,6 +31,15 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`Trainer.update_parameters` assigned the gradient norm into the report
+without checking it, although its signature accepts `report=None` and
+guards the other assignment.
+
+It also read `opt.weight_decay_rate`, a name from the Chainer
+implementation that no torch optimizer carries; the value lives in
+`param_groups`. I could not construct a run that reaches that line, so
+this is a latent defect rather than one with a known trigger.
+
 `Trainer.try_loading` re-raised on the first record that failed to load,
 and the line recording the failure sat unreachable behind that raise, so
 only the first entry of `--resume` was ever tried. `--resume` takes a

@@ -1014,7 +1014,10 @@ class Trainer:
                     if cdata.train.weight_decay_rate > 0:
                         weight_decay_warmup_steps = cdata.train.weight_decay_warmup_steps
                         if weight_decay_warmup_steps is not None and weight_decay_warmup_steps > 0:
-                            dprint(opt.weight_decay_rate)
+                            # torch の最適化器に weight_decay_rate 属性は
+                            # 無い (Chainer 時代の名前)。実際の値は
+                            # param_groups に入っている
+                            dprint(opt.param_groups[0]['weight_decay'])
                     #if default.train.warmup_steps > 0:
                     #    if opt.weight_decay_rate > 0:
                     #        dprint(opt.weight_decay_rate)
@@ -1809,7 +1812,9 @@ class Trainer:
         #    loss.backward()
         loss.backward()
         gnorm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), cdata.train.gradient_clipping)
-        report['gnorm'] = gnorm
+        # 署名は report=None を許すが、ここだけ確認していなかった
+        if report is not None:
+            report['gnorm'] = gnorm
         if not math.isfinite(gnorm):
             #dprint(gnorm)
             logger.debug(f"detected NaN on backward, gnorm: {gnorm}")
