@@ -1,0 +1,135 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lpu-nn"
+dynamic = ["version"]
+description = "Neural language processing models on PyTorch, built on LPU"
+readme = "README.md"
+# torch 2.4 以降がサポートする下限に合わせる (lpu 本体と同じ下限)
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "licenses/*"]
+authors = [
+    { name = "Akiva Miura", email = "akiva.miura@gmail.com" },
+]
+keywords = [
+    "NLP",
+    "PyTorch",
+    "deep learning",
+    "natural language processing",
+    "sequence to sequence",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+# lpu provides the configuration, logging, progress and file utilities that
+# this package builds on; the rest is the neural stack itself.
+# lpu が設定・ロギング・進捗表示・ファイル操作の基盤を提供し、
+# 残りがニューラル部分そのものの依存となる。
+dependencies = [
+    # IDMap / safe_* helpers are required; they land in the release after 0.5.2
+    # (IDMap と safe_* 系が必要。これらは 0.5.2 の次のリリースに入る)
+    "lpu>=0.5.2",
+    "torch>=2.4",
+    "sentencepiece>=0.2",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    # corpus-level BLEU during seq2seq evaluation
+    # (seq2seq の評価で使うコーパス単位 BLEU)
+    "nltk>=3.8",
+]
+
+[project.optional-dependencies]
+# Training curves are written only when matplotlib is available; the trainer
+# skips the plot otherwise.
+# (訓練曲線の出力は matplotlib がある場合のみ行い、無ければ描画を省略する)
+plot = [
+    "matplotlib>=3.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/akivajp/lpu-nn"
+Repository = "https://github.com/akivajp/lpu-nn"
+Issues = "https://github.com/akivajp/lpu-nn/issues"
+
+[project.scripts]
+lpu-nn-train-seq2seq = "lpu_nn.commands.train_seq2seq:main"
+lpu-nn-run-seq2seq = "lpu_nn.commands.run_seq2seq:main"
+
+# Until the lpu release carrying IDMap / safe_* is on PyPI, resolve lpu from
+# its repository. Remove this block once that release is published.
+# (IDMap / safe_* を含む lpu のリリースが PyPI に出るまでは、リポジトリから
+#  解決する。公開後はこのブロックを削除すること)
+[tool.uv.sources]
+lpu = { git = "https://github.com/akivajp/lpu.git", rev = "master" }
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=7",
+    "ruff>=0.13",
+    "mypy>=1.11",
+]
+
+[tool.ruff.lint]
+# Mirrors the lpu configuration: only rules that catch real defects, because
+# the ported code keeps its original naming.
+# (lpu の設定に合わせ、実害を捉えるルールのみ。移植コードは元の命名を保つため
+#  スタイル系は対象外とする)
+select = [
+    "B",    # bugbear
+    "C4",   # flake8-comprehensions
+    "E722", # bare except
+    "E9",   # runtime / syntax errors
+    "F",    # pyflakes
+    "RUF",  # ruff-specific
+    "UP",   # pyupgrade
+]
+
+[tool.mypy]
+# Gradual adoption, as in lpu: only the modules annotated so far are checked.
+# New modules are added here as their annotations land.
+# (lpu と同様に段階的導入。注釈済みモジュールのみを検査対象とし、
+#  注釈を付けたものからここに追加していく)
+files = []
+follow_imports = "silent"
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+strict_equality = true
+
+# torch / pandas ship type information; sentencepiece and nltk do not.
+# (torch と pandas は型情報を同梱するが、sentencepiece と nltk には無い)
+[[tool.mypy.overrides]]
+module = ["sentencepiece", "nltk.*"]
+ignore_missing_imports = true
+
+[tool.setuptools.dynamic]
+version = { file = "lpu_nn/VERSION" }
+
+[tool.setuptools.packages.find]
+include = ["lpu_nn*"]
+
+[tool.setuptools.package-data]
+lpu_nn = ["VERSION", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["lpu_nn"]
+parallel = true
+
+[tool.coverage.report]
+sort = "cover"
