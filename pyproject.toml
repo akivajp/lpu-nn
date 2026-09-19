@@ -119,7 +119,9 @@ select = [
 #  済みのため、ここを起点とする。移植分は注釈を付けた順に追加していく)
 files = [
     "lpu_nn/common/args.py",
+    "lpu_nn/common/criteria.py",
     "lpu_nn/common/files.py",
+    "lpu_nn/common/utils.py",
 ]
 follow_imports = "silent"
 check_untyped_defs = true

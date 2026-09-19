@@ -2,6 +2,7 @@
 
 # system
 import math
+from typing import Any
 
 # 3rd party
 import torch
@@ -14,29 +15,66 @@ from lpu_nn.common.utils import purge_tensor
 logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
-def cross_entropy(h, t, ignore_index=-1, reduction='mean', *args, **kwargs):
+def cross_entropy(h: torch.Tensor, t: torch.Tensor, ignore_index: "int | list[int]" = -1,
+                  reduction: str = 'mean', **kwargs: Any) -> torch.Tensor:
+    """Cross entropy over (B, V, L) logits and (B, L) targets
+
+    (B, V, L) のロジットと (B, L) の正解に対する交差エントロピー。
+
+    `reduction='hmean'` averages within each sample and returns one value
+    per sample; the other reductions are passed through to
+    `nn.functional.cross_entropy`. A list of ignored indices is supported
+    only by `'hmean'`, because that is the only path that builds the mask
+    itself.
+
+    `reduction='hmean'` はサンプル内で平均し、サンプルごとに 1 値を返す。
+    それ以外の reduction は `nn.functional.cross_entropy` へそのまま渡す。
+    無視する添字のリストを受け付けるのは `'hmean'` のみで、マスクを自前で
+    構築するのがこの経路だけであるため。
+
+    Extra positional arguments are not accepted: they would be forwarded
+    positionally to `nn.functional.cross_entropy`, where they land on
+    `weight` / `size_average` / `ignore_index` rather than being passed
+    through, and collide with the keywords set here.
+
+    追加の位置引数は受け付けない。`nn.functional.cross_entropy` へ位置の
+    まま渡ると `weight` / `size_average` / `ignore_index` に割り当てられて
+    しまい、ここで指定しているキーワードと衝突するため。
+    """
     dtype = h.dtype
     h = h.float()
     if reduction == 'hmean':
         if isinstance(ignore_index, int):
             t_valid = (t != ignore_index) # (B, L)
-            element_wise_entropy = nn.functional.cross_entropy(h, t, *args, ignore_index=ignore_index, reduction='none', **kwargs)
+            element_wise_entropy = nn.functional.cross_entropy(h, t, ignore_index=ignore_index, reduction='none', **kwargs)
         elif isinstance(ignore_index, list):
             t_valid = (t == t) # (B, L)
             for ignore in ignore_index:
                 t_valid = t_valid & (t != ignore)
-            element_wise_entropy = nn.functional.cross_entropy(h, t, *args, reduction='none', **kwargs)
+            element_wise_entropy = nn.functional.cross_entropy(h, t, reduction='none', **kwargs)
+            # torch 側に無視指定を渡せないため、マスクした位置を自前で 0 にする
             element_wise_entropy = purge_tensor(element_wise_entropy, t_valid, 0.0)
+        else:
+            raise TypeError(
+                f"ignore_index must be an int or a list of ints, "
+                f"given: {type(ignore_index).__name__}"
+            )
         normalizer = t_valid.sum(1).float() # (B,)
         xent = element_wise_entropy.sum(1) / normalizer # (B,)
     else:
-        xent = nn.functional.cross_entropy(h, t, *args, ignore_index=ignore_index, reduction=reduction, **kwargs)
+        if not isinstance(ignore_index, int):
+            raise TypeError(
+                f"a list of ignored indices is only supported by reduction='hmean', "
+                f"given reduction={reduction!r}"
+            )
+        xent = nn.functional.cross_entropy(h, t, ignore_index=ignore_index, reduction=reduction, **kwargs)
     return xent.to(dtype)
 
-def perplexity(h, t, *args, **kwargs):
-    return torch.exp(cross_entropy(h, t, *args, **kwargs))
+def perplexity(h: torch.Tensor, t: torch.Tensor, **kwargs: Any) -> torch.Tensor:
+    return torch.exp(cross_entropy(h, t, **kwargs))
 
-def accuracy(h, t, ignore_index=-1, reduction='mean'):
+def accuracy(h: torch.Tensor, t: torch.Tensor, ignore_index: "int | list[int]" = -1,
+             reduction: str = 'mean') -> torch.Tensor:
     if h.dim() > t.dim():
         pred = h.argmax(dim=1) # (B, L)
     else:
@@ -53,6 +91,8 @@ def accuracy(h, t, ignore_index=-1, reduction='mean'):
             #  添字では常に True になるため、何も除外されていなかった。
             #  上の cross_entropy は正しく書かれている)
             t_valid = t_valid & (t != ignore)
+    else:
+        raise TypeError(f"ignore_index must be an int or a list of ints, given: {type(ignore_index).__name__}")
     correct = (pred == t) * t_valid # (B, L)
     if reduction == 'mean':
         return correct.sum().float() / t_valid.sum().float()
@@ -61,11 +101,13 @@ def accuracy(h, t, ignore_index=-1, reduction='mean'):
     else:
         raise ValueError(f"unknown reduction method: {reduction}")
 
-def sequence_accuracy(h, t, ignore_index=-1):
+def sequence_accuracy(h: torch.Tensor, t: torch.Tensor,
+                      ignore_index: "int | list[int]" = -1) -> torch.Tensor:
     acc = accuracy(h, t, ignore_index, reduction='hmean') # (B)
     return (acc == 1.0).sum().float() / len(acc)
 
-def smoothed_cross_entropy(h, t, smooth=0.1, ignore_index=-1, reduction='mean'):
+def smoothed_cross_entropy(h: torch.Tensor, t: torch.Tensor, smooth: float = 0.1,
+                           ignore_index: int = -1, reduction: str = 'mean') -> torch.Tensor:
     dtype  = h.dtype
     h = h.float()
     _batch_size, vocab_size, _seq_len = h.shape

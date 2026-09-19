@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# system
+from collections.abc import Sequence
+from typing import Any
+
 # 3rd
 import torch
 from torch import nn
@@ -10,7 +14,7 @@ from lpu.common import logging
 logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
-def copy_model(src, dst, depth=0):
+def copy_model(src: nn.Module, dst: nn.Module, depth: int = 0) -> None:
     """
     :param nn.Module src: source module
     :param nn.Module dst: target module
@@ -27,16 +31,27 @@ def copy_model(src, dst, depth=0):
             logger.debug(f"copying parameter: {name}")
             param.data = param_dict[name].data
 
-def flip(t, dims):
-    # tensor.flip does not work for bool with cpu after torch 1.3.1
+def flip(t: torch.Tensor, dims: "int | Sequence[int]") -> torch.Tensor:
+    """Reverse a tensor along the given dimension(s)
+
+    指定した次元に沿ってテンソルを反転する。
+
+    This used to build a list of index tensors and apply it as `t[slices]`,
+    working around `torch.flip` not supporting bool tensors on the CPU in
+    torch 1.3. That restriction is long gone, and indexing with a non-tuple
+    sequence is deprecated: with more than one dimension it is already
+    interpreted as advanced indexing and raises an IndexError.
+
+    以前は添字テンソルのリストを組み立てて `t[slices]` として適用していた。
+    torch 1.3 の `torch.flip` が CPU 上の bool テンソルを扱えなかったことへの
+    回避策だが、その制限は既に無く、非タプル列による添字指定は非推奨である。
+    2 次元以上を指定すると既に高度な添字指定として解釈され IndexError になる。
+    """
     if isinstance(dims, int):
         dims = [dims]
-    slices = [slice(None,None,None)] * t.dim()
-    for dim in dims:
-        slices[dim] = torch.arange(t.shape[dim]-1, -1, -1)
-    return t[slices]
+    return torch.flip(t, list(dims))
 
-def purge_tensor(tensor, mask, else_value=0.0):
+def purge_tensor(tensor: torch.Tensor, mask: torch.Tensor, else_value: float = 0.0) -> torch.Tensor:
     """
     :param torch.Tensor tensor: tensor
     :param torch.Tensor mask: mask tensor
@@ -58,7 +73,7 @@ def purge_tensor(tensor, mask, else_value=0.0):
     else:
         raise ValueError(f"tensor.shape: {tensor.shape}, mask.shape: {mask.shape}")
 
-def make_attention_mask(query_id_seq, key_id_seq, padding=0):
+def make_attention_mask(query_id_seq: torch.Tensor, key_id_seq: torch.Tensor, padding: int = 0) -> torch.Tensor:
     """
     :param torch.Tensor query_id_seq: tensor (B, LenQ)
     :param torch.Tensor key_id_seq: tensor (B, LenK)
@@ -70,7 +85,7 @@ def make_attention_mask(query_id_seq, key_id_seq, padding=0):
     mask_key   = (key_id_seq   != padding)[:, None, :] # (B, 1, LenK)
     return mask_query * mask_key # (B, LenQ, LenK)
 
-def make_history_mask(id_seq):
+def make_history_mask(id_seq: torch.Tensor) -> torch.Tensor:
     """
     :param torch.Tensor id_seq: tensor (B, Len)
     :rtype: torch.Tensor
@@ -83,7 +98,7 @@ def make_history_mask(id_seq):
     mask = ones.tril() > 0
     return mask.to(device)
 
-def parameterize(val):
+def parameterize(val: "float | list[float] | tuple[float, ...] | torch.Tensor") -> nn.Parameter:
     """
     :param float or torch.Tensor val:
     :rtype: nn.Parameter
@@ -95,7 +110,7 @@ def parameterize(val):
     else:
         return nn.Parameter(torch.tensor(float(val)))
 
-def format_state(state, indent=0):
+def format_state(state: Any, indent: int = 0) -> str:
     #if indent > 50:
     #    return '?'
     str_indent = "  " * indent
@@ -128,7 +143,7 @@ def format_state(state, indent=0):
     else:
         raise TypeError(f"unsupported type: {type(state).__name__}")
 
-def format_state_list(state_list):
+def format_state_list(state_list: "Sequence[Any] | None") -> str:
     if state_list is None:
         return "None"
     elif len(state_list) == 0:
@@ -138,7 +153,7 @@ def format_state_list(state_list):
     s += f"] * {len(state_list)}"
     return s
 
-def get_sample_state(state, i):
+def get_sample_state(state: Any, i: int) -> Any:
     if isinstance(state, torch.Tensor):
         if state.shape[0] == 1:
             return state[0]
@@ -153,10 +168,10 @@ def get_sample_state(state, i):
     else:
         raise TypeError(f"unsupported type: {type(state).__name__}")
 
-def split_state(state, batch_size):
+def split_state(state: Any, batch_size: int) -> list[Any]:
     return [get_sample_state(state, i) for i in range(batch_size)]
 
-def stack_state_list(state_list):
+def stack_state_list(state_list: "Sequence[Any] | None") -> Any:
     if state_list is None:
         return None
     state_list = list(state_list)

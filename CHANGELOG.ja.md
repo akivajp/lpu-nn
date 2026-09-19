@@ -30,6 +30,19 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`utils.flip` は添字テンソルのリストを組み立てて `t[slices]` として適用して
+いました。torch 1.3 の `torch.flip` が CPU 上の bool テンソルを扱えなかった
+ことへの回避策ですが、その制限は既に無く、非タプル列による添字指定は
+非推奨です。2 次元以上を指定すると PyTorch は既に高度な添字指定として
+解釈し `IndexError` になります。`torch.flip` を呼ぶようにしました。
+
+`criteria.cross_entropy` と `criteria.perplexity` は追加の位置引数を受け
+取り、`nn.functional.cross_entropy` へ位置のまま転送していました。転送先
+では `weight` / `size_average` / `ignore_index` に割り当てられ、同時に
+指定しているキーワードと衝突します。利用箇所は無かったため受け付けない
+ようにしました。また、`'hmean'` 以外の reduction で無視添字のリストを
+渡した場合は、torch 内部のメッセージではなく理由を述べるようにしました。
+
 `criteria.accuracy` は `ignore_index` をリストで渡すと何も無視しません
 でした。正解ではなく真偽マスクと添字を比較しており (`t_valid != ignore`)、
 通常の添字では常に真になるためです。整数で渡した場合のみ正しく動作して

@@ -31,6 +31,20 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`utils.flip` built a list of index tensors and applied it as `t[slices]`,
+working around `torch.flip` not supporting bool CPU tensors in torch 1.3.
+That restriction is long gone, and indexing with a non-tuple sequence is
+deprecated: with more than one dimension PyTorch already reads it as
+advanced indexing and raises an `IndexError`. It now calls `torch.flip`.
+
+`criteria.cross_entropy` and `criteria.perplexity` accepted extra
+positional arguments and forwarded them positionally to
+`nn.functional.cross_entropy`, where they land on `weight` /
+`size_average` / `ignore_index` and collide with the keywords set
+alongside them. No caller used them, and they are no longer accepted.
+Passing a list of ignored indices with any reduction other than `'hmean'`
+now says so, rather than surfacing a message from inside torch.
+
 `criteria.accuracy` masked nothing when `ignore_index` was given as a
 list: it compared the boolean mask against the index (`t_valid != ignore`)
 rather than the targets, and that is true for every ordinary index. Only

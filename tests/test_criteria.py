@@ -179,3 +179,34 @@ class TestSmoothedCrossEntropy:
         logits = torch.zeros(1, 2, 2)
         with pytest.raises(ValueError):
             criteria.smoothed_cross_entropy(logits, torch.tensor([[0, 1]]), reduction='sum')
+
+
+class TestCriteriaGuards:
+    '''The paths that used to fail with a torch-level message now say what is wrong
+
+    従来 torch 側の読みにくいメッセージで落ちていた経路が、
+    何が誤りかを述べるようになっていること。
+    '''
+
+    def test_a_list_of_ignored_indices_needs_hmean(self):
+        # torch の cross_entropy は ignore_index に int しか取らないため、
+        # リストを扱えるのはマスクを自前で作る 'hmean' 経路だけ
+        logits = torch.zeros(1, 2, 2)
+        with pytest.raises(TypeError, match="hmean"):
+            criteria.cross_entropy(
+                logits, torch.tensor([[0, 1]]), ignore_index=[0], reduction='mean')
+
+    def test_an_unsupported_ignore_index_type_is_rejected(self):
+        logits = torch.zeros(1, 2, 2)
+        with pytest.raises(TypeError):
+            criteria.cross_entropy(
+                logits, torch.tensor([[0, 1]]), ignore_index='pad', reduction='hmean')
+        with pytest.raises(TypeError):
+            criteria.accuracy(torch.tensor([[0, 1]]), torch.tensor([[0, 1]]), ignore_index='pad')
+
+    def test_extra_positional_arguments_are_refused(self):
+        # 以前は nn.functional.cross_entropy へ位置のまま渡り、weight などに
+        # 化けていた。誤用が静かに通らないよう受け付けない
+        logits = torch.zeros(1, 2, 2)
+        with pytest.raises(TypeError):
+            criteria.cross_entropy(logits, torch.tensor([[0, 1]]), -1, 'mean', None)
