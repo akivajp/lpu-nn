@@ -133,6 +133,8 @@ files = [
     "lpu_nn/modeling/lstm.py",
     "lpu_nn/modeling/module.py",
     "lpu_nn/modeling/universal_transformer.py",
+    "lpu_nn/optimizers/adabound.py",
+    "lpu_nn/optimizers/lamb.py",
 ]
 follow_imports = "silent"
 check_untyped_defs = true

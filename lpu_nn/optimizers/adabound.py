@@ -2,6 +2,8 @@
 
 # system
 import math
+from collections.abc import Iterable
+from typing import Any
 
 # 3rd
 import torch
@@ -41,8 +43,11 @@ class AdaBound(Optimizer):
         https://openreview.net/forum?id=Bkg3g2R9FX
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), final_lr=0.1, gamma=1e-3,
-                 eps=1e-8, weight_decay=0, amsbound=False):
+    def __init__(self, params: Iterable[Any], lr: float = 1e-3,
+                 betas: tuple[float, float] = (0.9, 0.999),
+                 final_lr: float = 0.1, gamma: float = 1e-3,
+                 eps: float = 1e-8, weight_decay: float = 0,
+                 amsbound: bool = False) -> None:
         if not 0.0 <= lr:
             raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= eps:
@@ -61,12 +66,12 @@ class AdaBound(Optimizer):
 
         self.base_lrs = [group['lr'] for group in self.param_groups]
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict[str, Any]) -> None:
         super().__setstate__(state)
         for group in self.param_groups:
             group.setdefault('amsbound', False)
 
-    def step(self, closure=None):
+    def step(self, closure: "Any | None" = None) -> Any:
         """Performs a single optimization step.
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
@@ -107,7 +112,7 @@ class AdaBound(Optimizer):
                 state['step'] += 1
 
                 if group['weight_decay'] != 0:
-                    grad = grad.add(group['weight_decay'], p.data)
+                    grad = grad.add(p.data, alpha=group['weight_decay'])
 
                 # Decay the first and second moment running average coefficient
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
@@ -126,7 +131,12 @@ class AdaBound(Optimizer):
 
                 # Applies bounds on actual learning rate
                 # lr_scheduler cannot affect final_lr, this is a workaround to apply lr decay
-                final_lr = group['final_lr'] * group['lr'] / base_lr
+                # base_lr で割るのは、学習率スケジューラによる減衰を
+                # final_lr にも反映させるための仕掛け。ただし base_lr が 0
+                # だと ZeroDivisionError になる。ウォームアップを 0 から
+                # 始めた場合がこれに当たる。base_lr が 0 なら実効学習率も 0
+                # なので、上下限を 0 にしてパラメータを動かさない
+                final_lr = 0.0 if base_lr == 0 else group['final_lr'] * group['lr'] / base_lr
                 lower_bound = final_lr * (1 - 1 / (group['gamma'] * state['step'] + 1))
                 upper_bound = final_lr * (1 + 1 / (group['gamma'] * state['step']))
                 step_size = torch.full_like(denom, step_size)
@@ -155,8 +165,11 @@ class AdaBoundW(Optimizer):
         https://openreview.net/forum?id=Bkg3g2R9FX
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), final_lr=0.1, gamma=1e-3,
-                 eps=1e-8, weight_decay=0, amsbound=False):
+    def __init__(self, params: Iterable[Any], lr: float = 1e-3,
+                 betas: tuple[float, float] = (0.9, 0.999),
+                 final_lr: "float | None" = 0.1, gamma: float = 1e-3,
+                 eps: float = 1e-8, weight_decay: float = 0,
+                 amsbound: bool = False) -> None:
         if not 0.0 <= lr:
             raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= eps:
@@ -175,12 +188,12 @@ class AdaBoundW(Optimizer):
 
         self.base_lrs = [group['lr'] for group in self.param_groups]
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict[str, Any]) -> None:
         super().__setstate__(state)
         for group in self.param_groups:
             group.setdefault('amsbound', False)
 
-    def step(self, closure=None):
+    def step(self, closure: "Any | None" = None) -> Any:
         """Performs a single optimization step.
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
@@ -213,12 +226,25 @@ class AdaBoundW(Optimizer):
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_sq'] = torch.zeros_like(p.data).float() # !
 
-                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
-                exp_avg    = exp_avg.to(p.device).float() # to work with parameters
-                exp_avg_sq = exp_avg_sq.to(p.device).float() # to work with parameters
+                # The moments have to sit on the parameter's device, and in
+                # float32 even when the parameter is float16. `.to()` returns a
+                # copy whenever it actually moves, so the result must go back
+                # into the state: otherwise the in-place updates below land on
+                # a copy that is dropped at the end of the step, and the
+                # optimizer silently loses its history every step. That is what
+                # happens after resuming from a checkpoint saved on the CPU.
+                # (モーメントはパラメータと同じデバイス、かつパラメータが
+                #  float16 でも float32 に保つ必要がある。`.to()` は実際に
+                #  移動する場合にコピーを返すため、結果を state へ書き戻さ
+                #  なければならない。さもないと以下のその場更新が、ステップ
+                #  終了時に捨てられるコピーに対して行われ、最適化器は毎
+                #  ステップ履歴を失う。CPU で保存したチェックポイントから
+                #  再開した場合がこれに当たる)
+                state['exp_avg'] = exp_avg = state['exp_avg'].to(p.device, torch.float32)
+                state['exp_avg_sq'] = exp_avg_sq = state['exp_avg_sq'].to(p.device, torch.float32)
                 if amsbound:
-                    max_exp_avg_sq = state['max_exp_avg_sq']
-                    max_exp_avg_sq = max_exp_avg_sq.to(p.device).float() # to work with parameters
+                    state['max_exp_avg_sq'] = max_exp_avg_sq = \
+                        state['max_exp_avg_sq'].to(p.device, torch.float32)
                 beta1, beta2 = group['betas']
 
                 state['step'] += 1
@@ -245,7 +271,9 @@ class AdaBoundW(Optimizer):
                 if final_lr is None:
                     step_size.div_(denom).mul_(exp_avg)
                 else:
-                    final_lr = group['final_lr'] * group['lr'] / base_lr
+                    # base_lr が 0 のときは ZeroDivisionError になるため、
+                    # 実効学習率 0 として上下限も 0 にする (非 W 版と同じ)
+                    final_lr = 0.0 if base_lr == 0 else group['final_lr'] * group['lr'] / base_lr
                     lower_bound = final_lr * (1 - 1 / (group['gamma'] * state['step'] + 1))
                     upper_bound = final_lr * (1 + 1 / (group['gamma'] * state['step']))
                     step_size.div_(denom).clamp_(lower_bound, upper_bound).mul_(exp_avg)

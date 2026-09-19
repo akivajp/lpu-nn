@@ -4,6 +4,8 @@
 
 # system
 import math
+from collections.abc import Iterable
+from typing import Any
 
 # 3rd
 import torch
@@ -46,8 +48,9 @@ class Lamb(Optimizer):
         https://arxiv.org/abs/1904.00962
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
-                 weight_decay=0, adam=False):
+    def __init__(self, params: Iterable[Any], lr: float = 1e-3,
+                 betas: tuple[float, float] = (0.9, 0.999), eps: float = 1e-8,
+                 weight_decay: float = 0, adam: bool = False) -> None:
         if not 0.0 <= lr:
             raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= eps:
@@ -61,7 +64,7 @@ class Lamb(Optimizer):
         self.adam = adam
         super().__init__(params, defaults)
 
-    def step(self, closure=None):
+    def step(self, closure: "Any | None" = None) -> Any:
         """Performs a single optimization step.
 
         Arguments:

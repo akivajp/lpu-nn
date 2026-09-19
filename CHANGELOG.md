@@ -31,6 +31,23 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`AdaBoundW` lost its optimizer state whenever that state and the
+parameters sat on different devices, which is what resuming from a
+checkpoint saved on the CPU produces. It moved the moments with
+`.to(p.device)`, and `.to()` returns a copy when it actually moves, so
+every in-place update landed on a copy that was dropped at the end of the
+step: the moments stayed frozen at whatever they were, and the optimizer
+effectively restarted on every step while reporting nothing.
+
+Both AdaBound variants raised `ZeroDivisionError` when the learning rate
+reached zero: the dynamic bound divides the current rate by the rate the
+optimizer was constructed with, to let a scheduler decay `final_lr` too.
+A warmup schedule starting from zero hits this on its first step. A zero
+base rate now means a zero effective rate, so the parameters stay put.
+
+`AdaBound` also still used the deprecated `Tensor.add(alpha, other)`
+overload in its weight decay path, which the earlier sweep missed.
+
 `universal_transformer` could not be imported on its own: `transformer`
 imports it at module level and it imports `transformer` back, so whichever
 came first raised `ImportError`. It worked only because every other path

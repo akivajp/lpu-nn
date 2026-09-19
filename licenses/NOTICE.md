@@ -15,9 +15,13 @@
 - 論文: Luo et al., *Adaptive Gradient Methods with Dynamic Bound of Learning
   Rate*, ICLR 2019
 - 変更点:
-  - 最適化器の内部状態 (`exp_avg` 等) を float32 に保ち、勾配とパラメータが
-    float16 の場合でも動作するようにした
-  - 内部状態を毎ステップ、パラメータと同じデバイスへ移すようにした
+  - `AdaBoundW` について、最適化器の内部状態 (`exp_avg` 等) を float32 に
+    保ち、勾配とパラメータが float16 の場合でも動作するようにした
+    (`AdaBound` は上流のままで、この改変を含まない)
+  - 同じく `AdaBoundW` について、内部状態を毎ステップ、パラメータと同じ
+    デバイスへ移すようにした
+  - 両クラスについて、`base_lr` が 0 の場合に動的な上下限の算出が
+    ZeroDivisionError になる点を、実効学習率 0 として扱うよう修正した
   - `final_lr=None` を許可し、その場合は AdaBound の動的な学習率の
     上下限によるクランプを行わない (この分岐では実質 Adam として動作する)
   - 非推奨となった `Tensor.add_` / `Tensor.addcmul_` の位置引数形式を
