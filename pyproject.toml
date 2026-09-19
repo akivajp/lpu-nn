@@ -37,9 +37,19 @@ classifiers = [
 # lpu が設定・ロギング・進捗表示・ファイル操作の基盤を提供し、
 # 残りがニューラル部分そのものの依存となる。
 dependencies = [
-    # IDMap / safe_* helpers are required; they land in the release after 0.5.2
-    # (IDMap と safe_* 系が必要。これらは 0.5.2 の次のリリースに入る)
-    "lpu>=0.5.2",
+    # This needs IDMap and the safe_* file helpers, which land in the release
+    # after lpu 0.5.2. Until that release is on PyPI the requirement has to
+    # name the repository: a version constraint alone resolves to 0.5.2 and
+    # the import fails at startup. Replace this with "lpu>=0.6" once the
+    # release is published, which is also what makes lpu-nn publishable
+    # (PyPI rejects direct URL dependencies).
+    # (IDMap と safe_* 系のファイル補助が必要で、これらは lpu 0.5.2 の次の
+    #  リリースに入る。そのリリースが PyPI に出るまではリポジトリを直接
+    #  指定する必要がある。バージョン指定だけでは 0.5.2 が解決され、起動
+    #  直後に import が失敗するため。公開後は "lpu>=0.6" に置き換える。
+    #  PyPI は直接 URL 依存を受け付けないため、この置き換えが lpu-nn を
+    #  公開可能にする条件でもある)
+    "lpu @ git+https://github.com/akivajp/lpu.git@master",
     "torch>=2.4",
     "sentencepiece>=0.2",
     "numpy>=1.24",
@@ -65,13 +75,6 @@ Issues = "https://github.com/akivajp/lpu-nn/issues"
 [project.scripts]
 lpu-nn-train-seq2seq = "lpu_nn.commands.train_seq2seq:main"
 lpu-nn-run-seq2seq = "lpu_nn.commands.run_seq2seq:main"
-
-# Until the lpu release carrying IDMap / safe_* is on PyPI, resolve lpu from
-# its repository. Remove this block once that release is published.
-# (IDMap / safe_* を含む lpu のリリースが PyPI に出るまでは、リポジトリから
-#  解決する。公開後はこのブロックを削除すること)
-[tool.uv.sources]
-lpu = { git = "https://github.com/akivajp/lpu.git", rev = "master" }
 
 [dependency-groups]
 dev = [

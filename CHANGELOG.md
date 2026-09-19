@@ -31,6 +31,11 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`criteria.accuracy` masked nothing when `ignore_index` was given as a
+list: it compared the boolean mask against the index (`t_valid != ignore`)
+rather than the targets, and that is true for every ordinary index. Only
+the integer form worked. `cross_entropy` next to it has this right.
+
 `--help` printed the help and then exited with -1 (255), so `cmd --help`
 looked like a failure to shell scripts and to CI. The trainer builds its
 help manually, in order to show the model-specific defaults, which is how

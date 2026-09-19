@@ -46,7 +46,13 @@ def accuracy(h, t, ignore_index=-1, reduction='mean'):
     elif isinstance(ignore_index, list):
         t_valid = (t == t)
         for ignore in ignore_index:
-            t_valid = t_valid & (t_valid != ignore)
+            # `t_valid != ignore` compared the boolean mask against the index,
+            # which is True for every ordinary index, so nothing was ever
+            # masked out. cross_entropy above has this right.
+            # (`t_valid != ignore` は真偽マスクと添字を比較しており、通常の
+            #  添字では常に True になるため、何も除外されていなかった。
+            #  上の cross_entropy は正しく書かれている)
+            t_valid = t_valid & (t != ignore)
     correct = (pred == t) * t_valid # (B, L)
     if reduction == 'mean':
         return correct.sum().float() / t_valid.sum().float()
