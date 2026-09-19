@@ -31,6 +31,12 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`--eval-train` was folded into the saved configuration while every other
+`store_true` flag is left out of it. The default of such a flag is
+`False`, not `None`, so an unspecified flag reads as an explicit `False`
+and overwrites whatever the saved configuration held. It is a choice for
+one run, like `--eval-only` next to it, and is ignored the same way now.
+
 `Trainer.train_epoch` read the host name with `os.uname`, which does not
 exist on Windows. `platform.node` returns the same thing everywhere.
 

@@ -1735,6 +1735,10 @@ class Trainer:
         ignore.append('device')
         ignore.append('filter_noisy_samples')
         ignore.append('eval_only')
+        # --eval-train も 1 回の実行限りの指定であり、store_true の既定は
+        # False (None ではない) ため、無指定でも「明示的な False」として
+        # 設定へ畳み込まれてしまう。他の store_true と揃える
+        ignore.append('eval_train')
         ignore.append('import_embed')
         ignore.append('save_models')
         #ignore.append('max_epochs')
