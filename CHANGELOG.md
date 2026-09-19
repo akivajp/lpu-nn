@@ -31,6 +31,17 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`--help` printed the help and then exited with -1 (255), so `cmd --help`
+looked like a failure to shell scripts and to CI. The trainer builds its
+help manually, in order to show the model-specific defaults, which is how
+this went unnoticed.
+
+Deriving the number of attention heads from a hidden size below the
+default key size of 64 produced zero heads, which surfaced much later as a
+`ZeroDivisionError` inside a module constructor. The derivation is now
+shared by the two places that had a copy of it, and reports what to pass
+instead.
+
 `ModuleConnection` reads an `init_gamma` parameter that `get_parameters`
 computes a default for, but nothing applies it: the scaled LayerNorm gain
 initialization was lost in a refactor, so passing the parameter has no

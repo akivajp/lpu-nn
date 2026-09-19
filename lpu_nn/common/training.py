@@ -1989,7 +1989,12 @@ def main(Trainer, modelname):
         parser = Trainer.create_parser(modelname, config.data)
         main_parser = parser['main']
         print(main_parser.format_help())
-        sys.exit(-1)
+        # Printing the help is what was asked for, so it is a success.
+        # Exiting with -1 (255) made `cmd --help` look like a failure to
+        # shell scripts and to CI.
+        # (ヘルプの表示は要求どおりの動作なので正常終了とする。-1 (255) で
+        #  終了すると、シェルスクリプトや CI からは失敗に見えてしまう)
+        sys.exit(0)
 
     # setting debug mode
     if args.debug:

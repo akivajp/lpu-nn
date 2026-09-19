@@ -1,0 +1,93 @@
+name: test
+
+# The heavy part of this workflow is PyTorch, so the CPU-only wheel index is
+# used: it is a fraction of the size of the default CUDA build and the smoke
+# test does not need a GPU.
+# (このワークフローで重いのは PyTorch のため、CPU 専用の wheel を使う。
+#  既定の CUDA 版より遥かに小さく、スモークテストに GPU は不要)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: lint (ruff, mypy)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install ruff mypy
+      - run: ruff check .
+      # mypy checks only the modules listed in [tool.mypy]; the ported code
+      # is not annotated yet, so the list grows as annotations land.
+      # (mypy は [tool.mypy] の files に列挙したモジュールのみ検査する。
+      #  移植コードは未注釈のため、注釈を付けた分だけ対象を増やしていく)
+      - run: mypy
+
+  test:
+    name: test (${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install with the CPU-only PyTorch build
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install . pytest
+      - run: python -m pytest tests -v
+      - name: Every command answers --help
+        run: |
+          lpu-nn-train-seq2seq --help > /dev/null
+          lpu-nn-run-seq2seq --help > /dev/null
+
+  smoke:
+    name: train and decode (CPU)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install with the CPU-only PyTorch build
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install .
+      # A whole epoch on a 200-sentence synthetic corpus, then decoding with
+      # the checkpoint it wrote. This is what catches a dependency that
+      # changed under us, which is how most of the ported defects surfaced.
+      # (200 文の人工コーパスで 1 エポック回し、書き出されたチェックポイントで
+      #  復号する。依存側の破壊的変更を捉えるのが狙いで、移植時の不具合の
+      #  多くはこの経路で表面化した)
+      - name: Train for one epoch
+        run: |
+          python -m lpu_nn.commands.train_seq2seq runs/ci tests/data/train.tsv \
+            --dev-files tests/data/dev.tsv \
+            --num-epochs 1 --batch-size 16 --vocab-size 100 \
+            --embed-size 32 --hidden-size 32 --num-heads 4 --gpu -1 \
+            --logging runs/ci-train.log
+      - name: The best checkpoint exists and decodes
+        run: |
+          test -f runs/ci/record.best_dev_loss/model.pt
+          cut -f1 tests/data/dev.tsv | head -5 \
+            | python -m lpu_nn.commands.run_seq2seq runs/ci/record.best_dev_loss
+      - name: Nothing was written into the working directory
+        run: |
+          test ! -e TMP.txt
+          git diff --exit-code --stat
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: training-log
+          path: runs/ci-train.log
+          if-no-files-found: warn

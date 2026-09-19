@@ -48,6 +48,37 @@ class EmbedPosition(modeling.Module):
         #position_embed_seq = position_embed_seq * self.scale_emb
         return position_embed_seq
 
+def resolve_num_heads(params):
+    """Fill in whichever of num_heads / key_size was not given
+
+    num_heads と key_size のうち与えられていない方を補う。
+
+    When neither is given, key_size defaults to 64 and the head count is
+    derived from the hidden size. A hidden size below 64 then derives zero
+    heads, which used to surface much later as a ZeroDivisionError inside a
+    module constructor; it is reported here instead.
+
+    どちらも与えられない場合、key_size を 64 とし、ヘッド数を hidden_size
+    から導出する。hidden_size が 64 未満だとヘッド数が 0 になり、以前は
+    ずっと後のモジュール構築時に ZeroDivisionError として現れていたため、
+    ここで報告する。
+    """
+    hidden_size = params['hidden_size']
+    if params.get('num_heads'):
+        params.setdefault('key_size', hidden_size // params['num_heads'])
+        return params
+    params.setdefault('key_size', 64)
+    key_size = params['key_size']
+    num_heads = hidden_size // key_size
+    if num_heads < 1:
+        raise ValueError(
+            f"cannot derive the number of attention heads: hidden size "
+            f"{hidden_size} is smaller than the key size {key_size}. "
+            f"Pass --num-heads explicitly, or use a larger --hidden-size."
+        )
+    params.setdefault('num_heads', num_heads)
+    return params
+
 class EmbedRelativePosition(modeling.Module):
     def __init__(self, **params):
         super().__init__()
@@ -75,17 +106,7 @@ class EmbedRelativePosition(modeling.Module):
         params.setdefault('clip_distance', 8)
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
-        hidden_size = params['hidden_size']
-        if params.get('num_heads'):
-            num_heads = params['num_heads']
-            #params.setdefault('key_size', embed_size // num_heads)
-            params.setdefault('key_size', hidden_size // num_heads)
-        else:
-            params.setdefault('key_size', 64)
-            key_size = params['key_size']
-            #params.setdefault('num_heads', embed_size // key_size)
-            params.setdefault('num_heads', hidden_size // key_size)
-        return params
+        return resolve_num_heads(params)
 
     def forward(self, positions):
         emb_positions = self.mod_embed_relative_position(positions)
@@ -170,17 +191,7 @@ class MultiHeadAttention(modeling.Module):
         params.setdefault('dropout_ratio', 0.1)
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
-        #embed_size = params['embed_size']
-        hidden_size = params['hidden_size']
-        if params.get('num_heads'):
-            num_heads = params['num_heads']
-            #params.setdefault('key_size', embed_size // num_heads)
-            params.setdefault('key_size', hidden_size // num_heads)
-        else:
-            params.setdefault('key_size', 64)
-            key_size = params['key_size']
-            params.setdefault('num_heads', hidden_size // key_size)
-        return params
+        return resolve_num_heads(params)
 
     def init_weights(self):
         nn.init.orthogonal_(self.mod_query.weight)
