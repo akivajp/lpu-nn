@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import math
@@ -30,18 +29,18 @@ def get_attention(name, **params):
         return MLPAttention(**params)
     if name == 'none':
         return NoAttention(**params)
-    raise ValueError("unknown name for attention layer: {}".format(name))
+    raise ValueError(f"unknown name for attention layer: {name}")
 
 class NoAttention(modeling.Module):
     def __init__(self, **params):
-        super(NoAttention,self).__init__()
+        super().__init__()
     #def forward(self, memory, h_dec, **features):
     def forward(self, h_dec, memory, **features):
         return memory[:,-1]
 
 class AttentionBase(modeling.Module):
     def __init__(self, **params):
-        super(AttentionBase,self).__init__()
+        super().__init__()
         self.hidden_size = params.get('hidden_size')
         self.local_attention = params.get('local_attention')
         self.dropout_ratio = params.get('dropout_ratio', 0.1)
@@ -105,7 +104,7 @@ class AttentionBase(modeling.Module):
 
 class DotAttention(AttentionBase):
     def __init__(self, **params):
-        super(DotAttention,self).__init__(**params)
+        super().__init__(**params)
         self.bidirectional = params.get('bidirectional_encoder')
 
     def score(self, memory, h_dec):
@@ -119,20 +118,20 @@ class DotAttention(AttentionBase):
             # (B, L, H*2) -> (B, L, H)
             memory = torch.mean(torch.stack(memory.split(2, dim=2), dim=2), dim=3)
         #return super(DotAttention,self).forward(memory, h_dec, **features)
-        return super(DotAttention,self).forward(h_dec, memory, **features)
+        return super().forward(h_dec, memory, **features)
 
 class ConcatAttention(AttentionBase):
     def __init__(self, **params):
         self.bidirectional = params.get('bidirectional_encoder')
         self.hidden_size = params.get('hidden_size')
-        super(ConcatAttention,self).__init__(**params)
+        super().__init__(**params)
         if self.bidirectional:
             self.mod_linear = nn.Linear(self.hidden_size*3, 1)
         else:
             self.mod_linear = nn.Linear(self.hidden_size*2, 1)
 
     def init_weights(self):
-        super(ConcatAttention,self).init_weights()
+        super().init_weights()
         nn.init.orthogonal_(self.mod_linear.weight)
         self.mod_linear.bias.data.zero_()
 
@@ -148,14 +147,14 @@ class GeneralAttention(AttentionBase):
     def __init__(self, **params):
         self.bidirectional = params.get('bidirectional_encoder')
         self.hidden_size = params.get('hidden_size')
-        super(GeneralAttention,self).__init__(**params)
+        super().__init__(**params)
         if self.bidirectional:
             self.mod_linear = nn.Linear(self.hidden_size*2, self.hidden_size)
         else:
             self.mod_linear = nn.Linear(self.hidden_size, self.hidden_size)
 
     def init_weights(self):
-        super(GeneralAttention,self).init_weights()
+        super().init_weights()
         nn.init.orthogonal_(self.mod_linear.weight)
         self.mod_linear.bias.data.zero_()
 
@@ -170,7 +169,7 @@ class MLPAttention(AttentionBase):
         self.activation = params.get('activation')
         self.bidirectional = params.get('bidirectional_encoder')
         self.hidden_size = params.get('hidden_size')
-        super(MLPAttention,self).__init__(**params)
+        super().__init__(**params)
         if self.bidirectional:
             linear1 = nn.Linear(self.hidden_size*3, self.hidden_size)
         else:
@@ -182,7 +181,7 @@ class MLPAttention(AttentionBase):
         )
 
     def init_weights(self):
-        super(MLPAttention,self).init_weights()
+        super().init_weights()
         nn.init.orthogonal_(self.mod_score[0].weight, gain=get_gain('relu'))
         self.mod_score[0].bias.data.zero_()
         nn.init.orthogonal_(self.mod_score[2].weight)

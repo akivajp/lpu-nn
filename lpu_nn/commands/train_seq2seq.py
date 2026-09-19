@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
-import math
 import os
 from lpu_nn.common.args import strtobool
 
 # 3rd party
-import numpy as np
 import pandas as pd
 import torch
 from nltk.translate.bleu_score import corpus_bleu
@@ -20,7 +17,6 @@ from lpu_nn.common import training
 from lpu.common.config import Config
 from lpu.common.files import safe_remove
 from lpu.common.progress import view as pview
-from lpu_nn.common.utils import format_state
 from lpu_nn.common.utils import purge_tensor
 from lpu_nn.modeling.encoder_decoder import EncoderDecoder
 
@@ -254,7 +250,7 @@ class Seq2SeqTrainer(training.Trainer):
         return report
 
     def load_eval_data(self, path):
-        df = super(Seq2SeqTrainer, self).load_eval_data(path)
+        df = super().load_eval_data(path)
         df['ref'] = df.t
         return df
 
@@ -263,7 +259,7 @@ class Seq2SeqTrainer(training.Trainer):
         if tag == 'test':
             if feed_batches is None:
                 feed_batches = True
-        eval_report = super(Seq2SeqTrainer,self).evaluate(tag, df, args, feed_batches, report)
+        eval_report = super().evaluate(tag, df, args, feed_batches, report)
         batch_size = max(cdata.train.min_batch_size, int(cdata.train.batch_size / 2))
         batches = list(training.build_batches(df, batch_size, cdata.train.batch_type))
         vocab = self.model.vocab
@@ -279,7 +275,7 @@ class Seq2SeqTrainer(training.Trainer):
                     if 'pred' in df:
                         result = df.pred.tolist()
                     else:
-                        for batch in pview(batches, header='evaluating {} data'.format(tag)):
+                        for batch in pview(batches, header=f'evaluating {tag} data'):
                             #max_length = batch.len_x.max() * 1 + cdata.log.epoch
                             #batch_result = self.model.generate(batch.x.tolist(), max_length=max_length)
                             #batch_result = self.model.generate(self.convert_to_batch(batch.x), max_length=max_length)
@@ -296,16 +292,16 @@ class Seq2SeqTrainer(training.Trainer):
                         result = [vocab.remove_unk(tokens) for tokens in result]
                     if result:
                         bleu_score = corpus_bleu(ref, result, smoothing_function=SmoothingFunction().method1)
-                        outpath = os.path.join(args.workdir, 'record.tmp', 'pred_{}.txt'.format(tag))
+                        outpath = os.path.join(args.workdir, 'record.tmp', f'pred_{tag}.txt')
                         safe_remove(outpath, log=False)
                         with open(outpath, 'w', encoding='utf-8', errors='backslashreplace') as fobj:
-                            logger.info("writing generation results into: {}".format(outpath))
+                            logger.info(f"writing generation results into: {outpath}")
                             for sent in result:
                                 fobj.write(vocab.convert(sent, str))
                                 fobj.write("\n")
-                        logger.info("{} bleu: {} [%]".format(tag, bleu_score * 100))
+                        logger.info(f"{tag} bleu: {bleu_score * 100} [%]")
                         eval_report['bleu'] = bleu_score
-                logger.info("{} evaluation result (following lines):\n{}".format(tag, str(eval_report)))
+                logger.info(f"{tag} evaluation result (following lines):\n{eval_report!s}")
                 return eval_report
         except Exception as e:
             logger.exception(e)
@@ -316,18 +312,18 @@ class Seq2SeqTrainer(training.Trainer):
         cdata = self.config.data
         logger.info(msg)
         #logger.info('  index: {}'.format(sample.index))
-        logger.info('  index: {}'.format(sample.name))
+        logger.info(f'  index: {sample.name}')
         #logger.info('  input: {}'.format(vocab.decode(sample.x)))
-        logger.info('  input: {}'.format(sample.x))
+        logger.info(f'  input: {sample.x}')
         #logger.info('  ref: {}'.format(vocab.decode(sample.t)))
-        logger.info('  ref: {}'.format(sample.t))
+        logger.info(f'  ref: {sample.t}')
         #pred = self.model.generate(sample.x, max_length=sample.len_x+cdata.log.epoch)
         #pred = self.model.generate(self.convert_to_batch(sample.x), max_length=sample.len_x+cdata.log.epoch)
         pred = self.model.generate(sample.x, max_length=sample.len_x+cdata.log.epoch)
         #logger.info("  pred: {}".format(vocab.decode(pred)))
         #logger.info("  pred: {}".format(self.restore_batch(pred, str)))
-        logger.info("  pred: {}".format(self.model.restore_batch(pred, str)))
-        logger.info("  last perplexity: {}".format(sample.criterion))
+        logger.info(f"  pred: {self.model.restore_batch(pred, str)}")
+        logger.info(f"  last perplexity: {sample.criterion}")
 
     def test_model(self):
         if self.dev_df is not None:
@@ -366,8 +362,8 @@ class Seq2SeqTrainer(training.Trainer):
         cls.add_argument(group, default.model.local_attention, '--local-attention', '--local', '--la', type=strtobool, nargs='?', const=True, help='Using local attention mechanism for RNN encoder-decoder models')
         cls.add_argument(group, default.model.input_feeding, '--input-feeding', '--feeding', '--if', type=strtobool, nargs='?', const=True, help='Using input feeding of last decoder output state')
         group = parser['training']
-        group.add_argument('--loss-function', '--lossfunc', '--loss', type=str, default=None, choices=['xent', 'smooth'], help='Loss function (default: {})'.format(default.train.loss))
-        group.add_argument('--eval-timeout', '--evaluation-timeoout', '--test-timeout', type=float, default=None, help='Timeout duration for each evaluation batch in seconds (default: {})'.format(default.log.eval_timeout))
+        group.add_argument('--loss-function', '--lossfunc', '--loss', type=str, default=None, choices=['xent', 'smooth'], help=f'Loss function (default: {default.train.loss})')
+        group.add_argument('--eval-timeout', '--evaluation-timeoout', '--test-timeout', type=float, default=None, help=f'Timeout duration for each evaluation batch in seconds (default: {default.log.eval_timeout})')
         return parser
 
 def main():

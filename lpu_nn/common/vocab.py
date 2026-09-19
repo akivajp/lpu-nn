@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import os
 import random
-import re
-import tempfile
 import unicodedata
 from collections import OrderedDict
 
@@ -14,7 +11,6 @@ import sentencepiece as spm
 import torch
 
 # local
-from lpu.common import files
 from lpu.common import logging
 from lpu.common import progress
 from lpu_nn.common.tokenizer import train_tokenizer
@@ -26,7 +22,7 @@ dict_str2vector = {}
 
 def import_vectors(path):
     #dprint(path)
-    logger.info("loading pre-trained vectors from: {}".format(path))
+    logger.info(f"loading pre-trained vectors from: {path}")
     fobj = progress.view(path, "loading vectors")
     for line in fobj:
         #dprint(line)
@@ -99,7 +95,7 @@ class Vocabulary(IDMapBase):
                 else:
                     return str.join('',elements).replace('▁', ' ').strip()
             else:
-                raise TypeError("unknown piece type: {}".format(type(elements[0])))
+                raise TypeError(f"unknown piece type: {type(elements[0])}")
         except Exception as e:
             dprint(elements)
             logger.warning(repr(elements))
@@ -122,7 +118,7 @@ class Vocabulary(IDMapBase):
         elif to in ['pieces', 'tokens']:
             return self.sp.encode_as_pieces(sent)
         else:
-            raise ValueError("unknown encode target: {}".format(to))
+            raise ValueError(f"unknown encode target: {to}")
         if add_symbols:
             return self.safe_add_symbols(ids)
         else:
@@ -138,7 +134,7 @@ class Vocabulary(IDMapBase):
             elif to in ['pieces', 'tokens']:
                 return self.sp.encode_as_pieces(sent)
             else:
-                raise ValueError("unknown encode target: {}".format(to))
+                raise ValueError(f"unknown encode target: {to}")
         elif isinstance(sent, (list,tuple)):
             t = type(sent)
             if to in (str, 'str'):
@@ -151,16 +147,16 @@ class Vocabulary(IDMapBase):
                 elif to == 'ids':
                     return t(self.sp.piece_to_id(piece) for piece in sent)
                 else:
-                    raise ValueError("unknown decode target: {}".format(to))
+                    raise ValueError(f"unknown decode target: {to}")
             elif isinstance(sent[0], int):
                 if to == 'ids':
                     return sent
                 if to in ['pieces', 'tokens']:
                     return t(self.sp.id_to_piece(id) for id in sent)
                 else:
-                    raise ValueError("unknown decode target: {}".format(to))
+                    raise ValueError(f"unknown decode target: {to}")
         else:
-            raise ValueError("unsupported input type: {}".format(type(sent)))
+            raise ValueError(f"unsupported input type: {type(sent)}")
 
     def get_state(self):
         state = self.__dict__.copy()
@@ -168,7 +164,7 @@ class Vocabulary(IDMapBase):
         return state
 
     def load(self, path):
-        logger.info("loading SentencePiece model: {}".format(path))
+        logger.info(f"loading SentencePiece model: {path}")
         return self.loads(open(path, 'rb').read())
 
     def loads(self, buf):
@@ -189,9 +185,9 @@ class Vocabulary(IDMapBase):
             elif isinstance(sent[0], str):
                 return type(sent)(token for token in sent if token != '<unk>')
             else:
-                raise TypeError("unsupported token type: {}".format(type(sent[0]).__class__.__name__))
+                raise TypeError(f"unsupported token type: {type(sent[0]).__class__.__name__}")
         else:
-            raise TypeError("unsupported type: {}".format(type(sent).__class__.__name__))
+            raise TypeError(f"unsupported type: {type(sent).__class__.__name__}")
 
     def safe_add_symbols(self, ids, add_bos=True, add_eos=True):
         ids = list(ids)
@@ -232,7 +228,7 @@ class Vocabulary(IDMapBase):
                 id = self.sp.piece_to_id(sym)
                 #if id == 0:
                 if id == self.unk:
-                    raise ValueError("unknown symbols: {}".format(sym))
+                    raise ValueError(f"unknown symbols: {sym}")
                 setattr(self, key, id)
         self.symbols = symbols
         dprint(symbols)
@@ -277,7 +273,7 @@ class CharacterMap(IDMapBase):
             #        return elements
             #    return str.join('',elements)
             else:
-                raise TypeError("unknown piece type: {}".format(type(elements[0])))
+                raise TypeError(f"unknown piece type: {type(elements[0])}")
         except Exception as e:
             dprint(elements)
             logger.warning(repr(elements))
@@ -302,7 +298,7 @@ class CharacterMap(IDMapBase):
             #return sent.split('')
             return bytes(sent, 'utf-8')
         else:
-            raise ValueError("unknown encode target: {}".format(to))
+            raise ValueError(f"unknown encode target: {to}")
         if add_symbols:
             return self.safe_add_symbols(ids)
         else:
@@ -319,7 +315,7 @@ class CharacterMap(IDMapBase):
                 #return sent.split('')
                 return bytes(sent, 'utf-8')
             else:
-                raise ValueError("unknown encode target: {}".format(to))
+                raise ValueError(f"unknown encode target: {to}")
         elif isinstance(sent, (list,tuple)):
             t = type(sent)
             if to in (str, 'str'):
@@ -340,9 +336,9 @@ class CharacterMap(IDMapBase):
                     codes = [code - self.offset for code in sent]
                     return bytes(codes)
                 else:
-                    raise ValueError("unknown decode target: {}".format(to))
+                    raise ValueError(f"unknown decode target: {to}")
         else:
-            raise ValueError("unsupported input type: {}".format(type(sent)))
+            raise ValueError(f"unsupported input type: {type(sent)}")
 
     def safe_add_symbols(self, ids, add_bos=True, add_eos=True):
         ids = list(ids)
@@ -530,7 +526,7 @@ class IDMap(IDMapBase):
                     count = 0
                 else:
                     count = self.dict_count.get(token, 0)
-                fobj.write("{}\t{}\n".format(count, token))
+                fobj.write(f"{count}\t{token}\n")
 
     def load(self, path):
         for line in open(path):
@@ -548,7 +544,7 @@ class IDMap(IDMapBase):
         elif isinstance(key, int):
             return self.id2str(key)
         else:
-            raise KeyError("unsupported type: {}".format(type(key).__name__))
+            raise KeyError(f"unsupported type: {type(key).__name__}")
 
     def __len__(self):
         return len(self.list_id2str)
@@ -559,7 +555,7 @@ class IDMap(IDMapBase):
 
 class LabelMap(IDMap):
     def __init__(self):
-        super(LabelMap, self).__init__(sep=None)
+        super().__init__(sep=None)
 
     def feed_field(self, string):
         #dprint(string)
@@ -659,8 +655,8 @@ class FieldMap:
             #if val in ['tokens']:
             dprint( (key, val) )
             if val in ['tags']:
-                logger.debug("feeding corpus for field map: {} ({})".format(key, val))
-                save_path = "{}/map_{}.txt".format(workdir, key)
+                logger.debug(f"feeding corpus for field map: {key} ({val})")
+                save_path = f"{workdir}/map_{key}.txt"
                 idmap = IDMap()
                 idmap.set_symbols()
                 #idmap.set_symbols(extra_symbols)
@@ -669,8 +665,8 @@ class FieldMap:
                 #idmap.truncate(vocab_size)
                 idmap.save(save_path)
             if val in ['label']:
-                logger.debug("feeding corpus for field map: {} ({})".format(key, val))
-                save_path = "{}/map_{}.txt".format(workdir, key)
+                logger.debug(f"feeding corpus for field map: {key} ({val})")
+                save_path = f"{workdir}/map_{key}.txt"
                 idmap = LabelMap()
                 idmap.set_symbols()
                 idmap.feed_corpus(tsv_path, [i])
@@ -765,16 +761,16 @@ class FieldMap:
                 self.dict_maps[key] = vocab
             #if val in ['tokens']:
             if val in ['tags']:
-                list_path = "{}/map_{}.txt".format(workdir, key)
+                list_path = f"{workdir}/map_{key}.txt"
                 idmap = IDMap().load(list_path)
                 self.dict_maps[key] = idmap
             if val in ['label']:
-                list_path = "{}/map_{}.txt".format(workdir, key)
+                list_path = f"{workdir}/map_{key}.txt"
                 idmap = LabelMap().load(list_path)
                 self.dict_maps[key] = idmap
             if val in ['label']:
-                logger.debug("feeding corpus for field map: {} ({})".format(key, val))
-                save_path = "{}/map_{}.txt".format(workdir, key)
+                logger.debug(f"feeding corpus for field map: {key} ({val})")
+                save_path = f"{workdir}/map_{key}.txt"
         self.main_fields.update(main_fields)
         return self
 
@@ -800,7 +796,7 @@ class FieldMap:
             elif format == 'label':
                 self.dict_maps[key] = LabelMap().set_state(val)
             else:
-                raise KeyError("unknown variable name: {}".format(key))
+                raise KeyError(f"unknown variable name: {key}")
         return self
 
     def get(self, key, default=None):

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 __all__ = [
     'adabound',
@@ -7,7 +6,7 @@ __all__ = [
 
 from lpu.common import logging
 logger = logging.getColorLogger(__name__)
-logger.debug("initialized {} logger".format(__name__))
+logger.debug(f"initialized {__name__} logger")
 
 from . adabound import AdaBound
 from . adabound import AdaBoundW

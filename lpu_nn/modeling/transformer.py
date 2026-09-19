@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import math
@@ -10,7 +9,6 @@ from torch import nn
 
 # local
 from lpu.common import logging
-from lpu_nn.common.utils import format_state
 from lpu_nn.common.utils import make_attention_mask
 from lpu_nn.common.utils import make_history_mask
 from lpu_nn.common.utils import purge_tensor
@@ -25,7 +23,7 @@ dprint = logger.debug_print
 
 class EmbedPosition(modeling.Module):
     def __init__(self, **params):
-        super(EmbedPosition,self).__init__()
+        super().__init__()
         params = EmbedPosition.get_config(**params)
         self.max_length = params.get('max_length')
         self.embed_size = params.get('embed_size')
@@ -52,14 +50,14 @@ class EmbedPosition(modeling.Module):
 
 class EmbedRelativePosition(modeling.Module):
     def __init__(self, **params):
-        super(EmbedRelativePosition, self).__init__()
+        super().__init__()
         params = EmbedRelativePosition.get_config(**params)
         self.embed_size = params['embed_size']
         self.hidden_size = params['hidden_size']
         self.num_heads  = params['num_heads']
         self.clip_distance = params['clip_distance']
         K = self.clip_distance
-        logger.debug("using K={} (clipping distance) for relative positional embedding for self-attention of transformer".format(K))
+        logger.debug(f"using K={K} (clipping distance) for relative positional embedding for self-attention of transformer")
         #self.key_size = self.embed_size // self.num_heads
         self.key_size = self.hidden_size // self.num_heads
         logger.debug("using relative positional enbedding for self-attention")
@@ -96,7 +94,7 @@ class EmbedRelativePosition(modeling.Module):
 
 class FeedForward(modeling.Module):
     def __init__(self, **params):
-        super(FeedForward, self).__init__()
+        super().__init__()
         # parameters
         params = self.get_config(**params)
         self.dropout_ratio = params['dropout_ratio']
@@ -140,7 +138,7 @@ class FeedForward(modeling.Module):
 
 class MultiHeadAttention(modeling.Module):
     def __init__(self, **params):
-        super(MultiHeadAttention,self).__init__()
+        super().__init__()
         # parameters
         params = MultiHeadAttention.get_config(**params)
         self.dropout_ratio = params['dropout_ratio']
@@ -153,7 +151,7 @@ class MultiHeadAttention(modeling.Module):
         #self.key_size = key_size = int(embed_size / num_heads)
         self.key_size = key_size = int(hidden_size / num_heads)
         #assert embed_size == num_heads * key_size, "got E:{}, H:{}, K:{}".format(embed_size, num_heads, key_size)
-        assert hidden_size == num_heads * key_size, "got Hidden:{}, NumHeads:{}, KeySize:{}".format(hidden_size, num_heads, key_size)
+        assert hidden_size == num_heads * key_size, f"got Hidden:{hidden_size}, NumHeads:{num_heads}, KeySize:{key_size}"
         self.scale_dot = key_size ** -0.5
         # modules
         self.mod_embed_rel_pos = params.get('shared_embed_rel_pos')
@@ -285,7 +283,7 @@ class MultiHeadAttention(modeling.Module):
 class PositionalEncoder(modeling.Module):
     def __init__(self):
         self.cache = {}
-        super(PositionalEncoder,self).__init__()
+        super().__init__()
 
     #def __call__(self, shape, step=0, remember=True):
     def forward(self, shape, step=0, remember=True):
@@ -331,7 +329,7 @@ class ModuleConnection(modeling.Module):
     def __init__(self, layer_size, **params):
         params = self.get_parameters(**params)
         self.dropout_ratio = params['dropout_ratio']
-        super(ModuleConnection, self).__init__()
+        super().__init__()
         init_gamma = params.get('init_gamma')
         self.pre  = params['sublayer_preprocess']
         self.post = params['sublayer_postprocess']
@@ -383,7 +381,7 @@ class ModuleConnection(modeling.Module):
 
 class Transformer(modeling.Module):
     def __init__(self, conditioned=False, **params):
-        super(Transformer, self).__init__()
+        super().__init__()
         # parameters
         params = self.get_config(**params)
         #self.embed_size    = params['embed_size']
@@ -483,7 +481,7 @@ class Transformer(modeling.Module):
         return seq
 
     def extra_repr(self):
-        return "conditioned = {}".format(self.conditioned)
+        return f"conditioned = {self.conditioned}"
 
     def get_state(self):
         #status = {}
@@ -512,7 +510,7 @@ class MultiStepTransformer(modeling.Module):
     #def __init__(self, **hparams):
     #def __init__(self, combine=False, **hparams):
     def __init__(self, conditioned=False, **hparams):
-        super(MultiStepTransformer, self).__init__()
+        super().__init__()
         # parameters
         hparams = self.get_config(**hparams)
         self.num_layers      = hparams['num_layers']
@@ -653,7 +651,7 @@ class Encoder(modeling.Module):
         self.hidden_size     = params['hidden_size']
         self.dropout_ratio   = params['dropout_ratio']
         self.universal       = params['universal']
-        super(Encoder,self).__init__()
+        super().__init__()
         mod_embed_tok  = params.get('shared_embed_tok')
         #params['combine'] = False
         params['conditioned'] = False
@@ -738,7 +736,7 @@ class Decoder(modeling.Module):
         self.dropout_ratio   = hparams['dropout_ratio']
         self.share_embedding = hparams['share_embedding']
         self.universal       = hparams['universal']
-        super(Decoder,self).__init__()
+        super().__init__()
         mod_embed_tok  = hparams.get('shared_embed_tok')
         hparams['conditioned'] = True
         if self.universal:

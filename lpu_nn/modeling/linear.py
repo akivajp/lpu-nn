@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # 3rd
-import torch
 from torch import nn
 
 # local
@@ -18,7 +16,7 @@ class Linear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, activation=None, **kwargs):
         self.activation = activation
         self.hparams = kwargs
-        super(Linear,self).__init__(in_features, out_features, bias)
+        super().__init__(in_features, out_features, bias)
         if activation not in ['none', None]:
             self.mod_activate = get_activator(activation, out_features)
 
@@ -30,22 +28,22 @@ class Linear(nn.Linear):
         else:
             gain = get_gain(self.activation)
         if initializer in ['orthogonal']:
-            logger.debug("initializing {} weight orthogonally".format(name))
+            logger.debug(f"initializing {name} weight orthogonally")
             nn.init.orthogonal_(self.weight, gain=gain)
             if self.bias is not None:
                 nn.init.zeros_(self.bias)
         elif initializer in ['he-normal']:
-            logger.debug("initializing {} weight with Kaiming He's Normal".format(name))
+            logger.debug(f"initializing {name} weight with Kaiming He's Normal")
             std = gain / (self.in_features ** 0.5)
             nn.init.normal_(self.weight, std=std)
             if self.bias is not None:
                 nn.init.zeros_(self.bias)
         else: # if initilizer in ['pytorch', None]:
-            logger.debug("initializing {} weight with PyTorch's default method".format(name))
+            logger.debug(f"initializing {name} weight with PyTorch's default method")
             pass # pytorch default initializer
 
     def forward(self, input):
-        output = super(Linear,self).forward(input)
+        output = super().forward(input)
         if self.activation not in ['none', None]:
             output = self.mod_activate(output)
         return output

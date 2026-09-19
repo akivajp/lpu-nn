@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # 3rd
 import torch
@@ -7,7 +6,6 @@ from torch import nn
 
 # local
 from lpu.common import logging
-from lpu_nn.common.utils import format_state
 from lpu_nn import modeling
 from lpu_nn.modeling import transformer
 
@@ -16,7 +14,7 @@ dprint = logger.debug_print
 
 class UniversalTransformer(modeling.Module):
     def __init__(self, **params):
-        super(UniversalTransformer, self).__init__()
+        super().__init__()
         # parameters
         params = self.get_config(**params)
         self.act_output         = params['act_output']

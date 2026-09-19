@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import time
@@ -12,11 +11,8 @@ from torch import nn
 # local
 from lpu.common import logging
 from lpu_nn.common.utils import flip
-from lpu_nn.common.utils import format_state
-from lpu_nn.common.utils import format_state_list
 from lpu_nn.common.utils import split_state
 from lpu_nn.common.utils import stack_state_list
-from lpu_nn.common.vocab import FieldMap
 from lpu_nn import modeling
 from lpu_nn.modeling import embeddings
 from lpu_nn.modeling import transformer
@@ -44,7 +40,7 @@ class LSTMEncoder(modeling.Module):
         self.hidden_size   = params['hidden_size']
         self.dropout_ratio = params['dropout_ratio']
         self.bidirectional = params.get('bidirectional_encoder')
-        super(LSTMEncoder,self).__init__()
+        super().__init__()
         shared_embed_tok = params.get('shared_embed_tok')
         self.mod_rnn_forward = MultiLayerLSTM(**params)
         if self.bidirectional:
@@ -147,7 +143,7 @@ class LSTMDecoder(modeling.Module):
         self.memory_size = params['memory_size']
         self.attention_type = params['attention_type'] # (none, dot, concat, general, mlp)
         self.share_embedding = params['share_embedding']
-        super(LSTMDecoder,self).__init__()
+        super().__init__()
         mod_embed_tok = params.get('shared_embed_tok')
         if mod_embed_tok is None:
             #self.mod_embed_tok = nn.Embedding(self.vocab_size, self.embed_size, padding_idx=self.padding)
@@ -314,7 +310,7 @@ class EncoderDecoder(modeling.Module):
         self.decoder_type = params['decoder_type']
         #params.setdefault('padding', self.padding)
         #self.device = torch.device('cpu')
-        super(EncoderDecoder, self).__init__()
+        super().__init__()
         if self.share_embedding:
             #self.mod_embed_tok = nn.Embedding(self.vocab_size, self.embed_size, padding_idx=vocab.pad)
             self.mod_embed_tok = embeddings.Embedding(self.vocab_size, self.embed_size, padding=self.padding)
@@ -336,7 +332,7 @@ class EncoderDecoder(modeling.Module):
             #self.mod_encode = transformer.Encoder(vocab, **params)
             self.mod_encode = transformer.Encoder(idmaps, **params)
         else:
-            raise ValueError("unsupported encoder type: {}".format(self.encoder_type))
+            raise ValueError(f"unsupported encoder type: {self.encoder_type}")
         if self.decoder_type == 'lstm':
             #self.mod_decode = LSTMDecoder(vocab, **params)
             self.mod_decode = LSTMDecoder(idmaps, **params)
@@ -344,7 +340,7 @@ class EncoderDecoder(modeling.Module):
             #self.mod_decode = transformer.Decoder(vocab, **params)
             self.mod_decode = transformer.Decoder(idmaps, **params)
         else:
-            raise ValueError("unsupported decoder type: {}".format(self.decoder_type))
+            raise ValueError(f"unsupported decoder type: {self.decoder_type}")
 
     @classmethod
     def fix_component_name(cls, name):
@@ -355,7 +351,7 @@ class EncoderDecoder(modeling.Module):
         elif name.lower() in ['bert']:
             return 'bert'
         else:
-            raise ValueError("Unsupported component name: {}".format(name))
+            raise ValueError(f"Unsupported component name: {name}")
 
     @classmethod
     def get_config(cls, **params):
@@ -437,7 +433,7 @@ class EncoderDecoder(modeling.Module):
         elif to in [pd.Series, 'series']:
             return pd.Series(list_ids)
         else:
-            raise TypeError("unknown conversion type: {}".format(to))
+            raise TypeError(f"unknown conversion type: {to}")
 
     def generate(self, x, max_length=100, timeout=None):
         device = self.device

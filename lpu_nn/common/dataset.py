@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import csv
 import glob
 import io
-from ast import literal_eval
 from functools import reduce
 
 import pandas as pd
@@ -30,7 +28,7 @@ def get_indices(fields, keys):
 def to_float(s, default=-1):
     try:
         return float(s)
-    except Exception as e:
+    except Exception:
         return default
 
 def get_values(fields, indices):
@@ -49,7 +47,7 @@ def get_values(fields, indices):
 #            converters[column] = literal_eval
 #    return converters
 
-class Dataset():
+class Dataset:
     def __init__(self, path, sep='\t', priority_keys=None):
         self.load(path, sep, priority_keys)
 
@@ -211,7 +209,7 @@ class Dataset():
 #def build_train_data(main_fields, save_path, train_file, vocab, sep= '\t'):
 #def build_train_data(main_fields, save_path, train_file, vocab, sep= '\t', max_length=None):
 def build_train_data(main_fields, save_path, train_file, sep= '\t', max_length=None):
-    writer = csv.writer(open(save_path, 'wt'), delimiter=sep)
+    writer = csv.writer(open(save_path, 'w'), delimiter=sep)
     #header = ['index', 'x', 't', 'len_x', 'len_t', 'cost', 'last_epoch', 'last_step', 'feed_count', 'criterion', 'last_pred']
     #header = ['index', 'x', 't', 'criterion']
     #header = ['index', 'x', 't', 'len_x', 'len_t', 'cost', 'last_epoch', 'last_step', 'feed_count', 'criterion', 'priority', 'last_pred']
@@ -223,7 +221,7 @@ def build_train_data(main_fields, save_path, train_file, sep= '\t', max_length=N
     format_types = main_fields.values()
     too_long_count = 0
     #for i, line in enumerate( progress.view(train_file) ):
-    for i, line in enumerate( progress.view(train_file, header="scanning file '{}'".format(train_file)) ):
+    for i, line in enumerate( progress.view(train_file, header=f"scanning file '{train_file}'") ):
         try:
             fields = line.strip().split(sep)
             #fields = line.strip('\n').split(sep)
@@ -283,14 +281,14 @@ def build_train_data(main_fields, save_path, train_file, sep= '\t', max_length=N
             logger.exception(e)
             #logger.debug(repr(e))
     if too_long_count > 0:
-        logger.info("skipped {:,d} too long samples".format(too_long_count))
+        logger.info(f"skipped {too_long_count:,d} too long samples")
 
 #def load_eval_data(main_fields, file_or_buffer, vocab, sep='\t'):
 def load_eval_data(main_fields, file_or_buffer, sep='\t'):
     #with open(eval_file, 'r') as fobj:
     fobj = file_or_buffer
     if isinstance(file_or_buffer, str):
-        fobj = open(file_or_buffer, 'rt', encoding='utf-8', errors='backslashreplace')
+        fobj = open(file_or_buffer, encoding='utf-8', errors='backslashreplace')
     rows = []
     #converters = gen_converters(main_fields)
     format_types = main_fields.values()
@@ -333,7 +331,7 @@ def merge_tsv_files(tsv_paths, target_path, sep='\t'):
         tsv_paths = [tsv_paths]
     tsv_paths = reduce(list.__add__, [glob.glob(p) for p in tsv_paths])
     for i, tsv_path in enumerate(tsv_paths):
-        msg = "merging '{}' into '{}'".format(tsv_path, target_path)
+        msg = f"merging '{tsv_path}' into '{target_path}'"
         logger.info(msg)
         fobj_in = progress.view(tsv_path, header = msg)
         if i == 0:
@@ -345,5 +343,5 @@ def merge_tsv_files(tsv_paths, target_path, sep='\t'):
             # skip header
         for chunk in fobj_in.read_byte_chunks():
             fobj_out.write(chunk)
-    logger.info("merged tsv files '{}' into: '{}'".format(tsv_path, target_path))
+    logger.info(f"merged tsv files '{tsv_path}' into: '{target_path}'")
 

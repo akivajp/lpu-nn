@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import argparse
@@ -24,7 +23,6 @@ DEFAULT_MODEL_TYPE = 'unigram'
 MODEL_TYPE_CHOICES = ['unigram', 'bpe', 'word', 'char']
 
 from collections import defaultdict
-import unicodedata
 
 #def split_digits(segment):
 def split_digit_chars(segment):
@@ -87,9 +85,9 @@ def preprocess(train_files,
     dprint(temp.name)
     logger.info("starting pre-proprocess")
     if max_segments:
-        logger.info("max total segment count: {:,d}".format(max_segments))
+        logger.info(f"max total segment count: {max_segments:,d}")
     if max_bytes:
-        logger.info("max bytes: {:,d}".format(max_bytes))
+        logger.info(f"max bytes: {max_bytes:,d}")
     count = 0
     byte_count = 0
     for path in train_files:
@@ -215,11 +213,11 @@ def train_tokenizer(model_prefix, train_files, vocab_size=DEFAULT_VOCAB_SIZE,
         cover_segments = cover_segments,
     )
     args = []
-    args.append('--model_prefix={}'.format(model_prefix))
-    args.append('--input={}'.format(temp.name))
-    args.append('--vocab_size={}'.format(vocab_size))
-    args.append('--model_type={}'.format(model_type))
-    args.append('--unk_surface={}'.format(unk_surface))
+    args.append(f'--model_prefix={model_prefix}')
+    args.append(f'--input={temp.name}')
+    args.append(f'--vocab_size={vocab_size}')
+    args.append(f'--model_type={model_type}')
+    args.append(f'--unk_surface={unk_surface}')
     #if model_type == 'word':
     #    args.append('--hard_vocab_limit=false')
     if not hard_vocab_limit:
@@ -237,7 +235,7 @@ def train_tokenizer(model_prefix, train_files, vocab_size=DEFAULT_VOCAB_SIZE,
         args.append('--use_all_vocab=true')
     model_path = model_prefix + '.model'
     str_args = str.join(' ', args)
-    logger.info("started training SentencePiece with arguments: {}".format(str_args))
+    logger.info(f"started training SentencePiece with arguments: {str_args}")
     spm.SentencePieceTrainer.train(str_args)
     logger.info("finished training SentencePiece")
     return model_path

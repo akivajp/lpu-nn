@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # 3rd
 import torch
@@ -21,7 +20,7 @@ class SequenceConvolution1d(nn.Conv1d):
         self.output_size = output_size
         self.ngram_order = ngram_order
         self.activation  = activation
-        super(SequenceConvolution1d,self).__init__(
+        super().__init__(
             in_channels  = self.input_size,
             out_channels = self.output_size,
             kernel_size  = self.ngram_order,
@@ -39,13 +38,13 @@ class SequenceConvolution1d(nn.Conv1d):
         else:
             gain = get_gain(self.activation)
         if initializer in ['orthogonal']:
-            logger.debug("initializing {} weight orthogonally".format(name))
+            logger.debug(f"initializing {name} weight orthogonally")
             #nn.init.orthogonal_(self.mod_conv.weight, gain=gain)
             nn.init.orthogonal_(self.weight, gain=gain)
             #nn.init.zeros_(self.mod_conv.bias)
             nn.init.zeros_(self.bias)
         elif initializer in ['he-normal']:
-            logger.debug("initializing {} weight with Kaiming He's Normal".format(name))
+            logger.debug(f"initializing {name} weight with Kaiming He's Normal")
             actual_input_size = self.input_size * self.ngram_order
             std = gain / (actual_input_size ** 0.5)
             #nn.init.normal_(self.mod_conv.weight, std=std)
@@ -53,7 +52,7 @@ class SequenceConvolution1d(nn.Conv1d):
             #nn.init.zeros_(self.mod_conv.bias)
             nn.init.zeros_(self.bias)
         else: # if initilizer in ['pytorch', None]:
-            logger.debug("initializing {} weight with PyTorch's default method".format(name))
+            logger.debug(f"initializing {name} weight with PyTorch's default method")
             pass # pytorch default initializer
 
     def forward(self, seq):
@@ -69,7 +68,7 @@ class SequenceConvolution1d(nn.Conv1d):
             pad_right = torch.zeros([batch_size, input_size, n//2]).to(self.device)
             in_seq = torch.cat([pad_left,seq,pad_right], dim=2) # (B, I, L+K-1)
         #out_seq = self.mod_conv(in_seq) # (B, O, L)
-        out_seq = super(SequenceConvolution1d,self).forward(in_seq) # (B, O, L)
+        out_seq = super().forward(in_seq) # (B, O, L)
         out_seq = out_seq.transpose(1, 2) # (B, L, O)
         if self.activation not in [None, "none"]:
             out_seq = self.mod_activate(out_seq)

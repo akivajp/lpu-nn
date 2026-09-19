@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 '''
     General purpose trainer class
@@ -10,7 +9,6 @@ import argparse
 import datetime
 import gc
 import glob
-import json
 import math
 import os
 import re
@@ -26,7 +24,6 @@ from gettext import gettext as _
 import numpy as np
 import pandas as pd
 import torch
-from torch import nn
 
 # local
 from lpu.common import logging
@@ -35,7 +32,6 @@ from lpu.common.config import ConfigData
 from lpu_nn.common.dataset import Dataset
 from lpu_nn.common.dataset import build_train_data
 from lpu_nn.common.dataset import load_eval_data
-from lpu_nn.common.dataset import merge_tsv_files
 from lpu.common.dialog import ask_continue_if_exist
 from lpu.common.files import load_to_temp
 from lpu.common.files import safe_copy
@@ -43,13 +39,10 @@ from lpu.common.files import safe_link
 from lpu.common.files import safeMakeDirs
 from lpu.common.files import safe_remove
 from lpu.common.files import safe_rename
-from lpu.common.files import wait_file
 from lpu.common.progress import view as pview
 from lpu_nn.common.files import PastedFile
 from lpu_nn.common.initialization import apply_init_weights
 from lpu_nn.common import vocab
-from lpu_nn.common.vocab import Vocabulary
-from lpu_nn.common.vocab import IDMap
 from lpu_nn.common.vocab import FieldMap
 from lpu_nn import optimizers
 
@@ -195,18 +188,18 @@ def format_time(seconds):
     s = ""
     remain = seconds
     if remain > 60 * 60 * 24:
-        s = "{:d}D".format(math.floor(remain / (60 * 60 * 24)))
+        s = f"{math.floor(remain / (60 * 60 * 24)):d}D"
         remain = remain % (60 * 60 * 24)
     if remain > 60 * 60:
-        s += "{:d}H".format(math.floor(remain / (60 * 60)))
+        s += f"{math.floor(remain / (60 * 60)):d}H"
         remain = remain % (60 * 60)
     if remain > 60:
-        s += "{:d}M".format(math.floor(remain / 60))
+        s += f"{math.floor(remain / 60):d}M"
         remain = remain % 60
     if seconds < 60:
-        s += "{:.2f}S".format(remain)
+        s += f"{remain:.2f}S"
     elif seconds < 60 * 60 * 24:
-        s += "{:d}S".format(math.floor(remain))
+        s += f"{math.floor(remain):d}S"
     return s
 
 def setup_optimizer(config, model):
@@ -223,13 +216,13 @@ def setup_optimizer(config, model):
             if weight_decay_rate > 0:
                 replaced = re.sub(r'\.\d+', '[:]', name)
                 if replaced not in showed:
-                    logger.debug("setting weight_decay_rate = 0 for parameter {}".format(replaced))
+                    logger.debug(f"setting weight_decay_rate = 0 for parameter {replaced}")
                     showed.add(replaced)
             biases.append(param)
         else:
             others.append(param)
     if weight_decay_rate > 0:
-        logger.debug("setting weight_decay_rate = {} for the other parameters".format(weight_decay_rate))
+        logger.debug(f"setting weight_decay_rate = {weight_decay_rate} for the other parameters")
     param_groups = [
         dict(params=others, weight_decay=weight_decay_rate),
         dict(params=biases, weight_decay=0),
@@ -323,7 +316,7 @@ def reduce_batch_size(batch, batch_size, batch_type):
             batch.drop(batch.len.idxmax(), inplace=True)
         return batch
 
-class Trainer(object):
+class Trainer:
     default = default
     specific = None
     Model = None
@@ -360,7 +353,7 @@ class Trainer(object):
             train_samples = train_df.sample(len(train_df))
             method = 'none'
         else:
-            raise ValueError("unknown curriculum method: {}".format(method))
+            raise ValueError(f"unknown curriculum method: {method}")
         #dprint(train_samples.iloc[:5])
         digest_data0 = train_samples[train_samples.priority <= 0]
         if True:
@@ -381,13 +374,13 @@ class Trainer(object):
                 if len(evaluated) > 0:
                     try:
                         desc = evaluated.describe().transpose()
-                        logger.info("statistics for trained samples:\n{}".format(desc))
+                        logger.info(f"statistics for trained samples:\n{desc}")
                     except Exception as e:
                         dprint(repr(e))
-                logger.info("training data size: {:,}".format(train_size))
-                logger.info("taken training data size: {:,}".format(len(train_samples)))
+                logger.info(f"training data size: {train_size:,}")
+                logger.info(f"taken training data size: {len(train_samples):,}")
                 taken_ratio = len(train_samples) / float(train_size)
-                logger.info("taking: {:.2f}%".format(taken_ratio * 100))
+                logger.info(f"taking: {taken_ratio * 100:.2f}%")
         if cdata.log.epoch >= 2:
             if cdata.train.review_rate > 0:
                 # secure a chance to train unseen examples and review examples trained in previous epochs
@@ -396,8 +389,8 @@ class Trainer(object):
                 #unseen_limit = int(cdata.train.batch_size * cdata.train.max_batches * 0.5 + 1)
                 unseen = train_samples[train_samples.feed_count == 0]
                 seen = train_samples[train_samples.feed_count > 0]
-                logger.info("unseen data size: {:,}".format(len(unseen)))
-                logger.info("seen data size: {:,}".format(len(seen)))
+                logger.info(f"unseen data size: {len(unseen):,}")
+                logger.info(f"seen data size: {len(seen):,}")
                 #drop_indices = unseen.index[unseen_limit:]
                 #curriculum_data.drop(drop_indices, inplace=True)
                 train_samples = pd.concat([unseen[:unseen_limit], seen])
@@ -420,7 +413,7 @@ class Trainer(object):
                 else:
                     self.challenge_batches = None
         #logger.info("curriculum data size: {:,}".format(len(train_samples)))
-        logger.info("train data size: {:,}".format(len(train_samples)))
+        logger.info(f"train data size: {len(train_samples):,}")
         #self.curriculum_batches = list(build_batches(train_samples, cdata.train.batch_size, cdata.train.batch_type))
         self.train_batches = list(build_batches(train_samples, cdata.train.batch_size, cdata.train.batch_type))
         #random.shuffle(self.train_batches)
@@ -442,7 +435,7 @@ class Trainer(object):
                 if self.optimizer:
                     self.optimizer.zero_grad()
                 if feed_batches:
-                    logger.info("evaluating {} batches...".format(tag))
+                    logger.info(f"evaluating {tag} batches...")
                     #eval_report = self.feed_batches(batches, train=False, show_report=True)
                     eval_report = self.feed_batches(batches, train=False, show_report=True, df=df)
         except Exception as e:
@@ -453,8 +446,8 @@ class Trainer(object):
         def drop_noise(noisy, based_on):
             noisy = noisy.sort_values('criterion')
             noisy_repr = repr(noisy[self.len_fields + ['cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
-            logger.info("noisy training data (based on \"{}\"):\n{}".format(based_on, noisy_repr))
-            logger.info("dropping {} noisy training samples...".format(len(noisy)))
+            logger.info(f"noisy training data (based on \"{based_on}\"):\n{noisy_repr}")
+            logger.info(f"dropping {len(noisy)} noisy training samples...")
             self.train_df.drop(noisy.index, inplace=True)
         # dropping noisy training data
         cdata = self.config.data
@@ -613,7 +606,7 @@ class Trainer(object):
                     self.labels.append(label)
 
     def load_model(self, model_path, force=True):
-        logger.info("loading model from '{}' ...".format(model_path))
+        logger.info(f"loading model from '{model_path}' ...")
         loaded_state_dict = torch.load(model_path, 'cpu')
         config = Config(self.default)
         config.update(loaded_state_dict['config'])
@@ -638,10 +631,10 @@ class Trainer(object):
                 #for k, v in state_dict['model'].items():
                 for k, v in loaded_model_state_dict.items():
                     if k in model_state_dict:
-                        logger.debug("loading \"{}\"".format(k))
+                        logger.debug(f"loading \"{k}\"")
                         model_state_dict[k] = v
                     else:
-                        logger.debug("\"{}\" is not found".format(k))
+                        logger.debug(f"\"{k}\" is not found")
                 model.load_state_dict(model_state_dict)
             else:
                 raise e
@@ -655,14 +648,14 @@ class Trainer(object):
         if os.path.exists(optimizer_path):
             loaded_optimizer_state_dict = torch.load(optimizer_path, 'cpu')
             try:
-                logger.info("loading optimizer from '{}' ...".format(optimizer_path))
+                logger.info(f"loading optimizer from '{optimizer_path}' ...")
                 optimizer.load_state_dict(loaded_optimizer_state_dict)
             except Exception as e:
                 logger.error(repr(e))
                 logger.info("failed to load optimizer parameters")
                 logger.info("continuing without loading")
         else:
-            raise RuntimeError("Not found file: {}".format(optimizer_path))
+            raise RuntimeError(f"Not found file: {optimizer_path}")
         return optimizer
 
     def load_train_data(self, path=None):
@@ -670,7 +663,7 @@ class Trainer(object):
         if path is None:
             #path = self.worker_data_path
             path = self.train_data_path
-        logger.info("loading train dataset: {}".format(path))
+        logger.info(f"loading train dataset: {path}")
         if curriculum in ['crit-len']:
             self.train_data = Dataset(path, sep='\t', priority_keys=['priority']+['len'])
         elif curriculum in ['crit']:
@@ -680,10 +673,10 @@ class Trainer(object):
         elif curriculum in ['none', None]:
             self.train_data = Dataset(path, sep='\t', priority_keys=None)
         else:
-            raise ValueError("unknown curriculum: {}".format(curriculum))
+            raise ValueError(f"unknown curriculum: {curriculum}")
         train_size = len(self.train_data)
         max_samples = self.config.data.train.max_samples_per_epoch
-        logger.info("converting {:,d} samples to pandas dataframe".format(min(train_size, max_samples)))
+        logger.info(f"converting {min(train_size, max_samples):,d} samples to pandas dataframe")
         self.train_df = self.train_data.to_df(self.main_fields, 0, max_samples)
         #dprint(self.train_df.iloc[:5])
         return self.train_df
@@ -701,7 +694,7 @@ class Trainer(object):
                 if os.path.isfile(record):
                     path_candidates.append(record)
                 path_candidates.append(os.path.join(record, 'model.pt'))
-                path_candidates.append(os.path.join(path, 'record.{}'.format(record), 'model.pt'))
+                path_candidates.append(os.path.join(path, f'record.{record}', 'model.pt'))
         for path in path_candidates:
             if os.path.isfile(path):
                 model_path = path
@@ -795,7 +788,7 @@ class Trainer(object):
                 plt.xlabel(label_x)
             if label_y is not None:
                 plt.ylabel(label_y)
-            logger.info("plotting into: {}".format(outfile_plot))
+            logger.info(f"plotting into: {outfile_plot}")
             safe_remove(outfile_plot, log=False)
             plt.savefig(outfile_plot)
             plt.close()
@@ -821,12 +814,12 @@ class Trainer(object):
                 if msg:
                     msg = msg.strip(', ') + ', '
                 if field in ['epoch']:
-                    msg += "{}: {}".format(field, cdata.log.epoch)
+                    msg += f"{field}: {cdata.log.epoch}"
                 elif field in ['proc', 'process', 'processing']:
                     num_batches = progress.num_batches
                     len_num_batches = len(str(num_batches))
                     str_i = str(progress.batch_i+1).rjust(len_num_batches)
-                    msg += "{}: {}/{}".format(field, str_i, num_batches)
+                    msg += f"{field}: {str_i}/{num_batches}"
                 elif field in ['lr']:
                     lr = self.optimizer.param_groups[0]['lr']
                     if cdata.train.optimizer in ['adabound', 'amdbound']:
@@ -835,40 +828,40 @@ class Trainer(object):
                         step = cdata.log.train_step
                         lower = final_lr * (1.0 - 1.0 / (gamma * step + 1))
                         lr = max(lr, lower)
-                    msg += "{}: {:.8f}".format(field, lr)
+                    msg += f"{field}: {lr:.8f}"
                 elif field in ['acc', 'accuracy']:
                     accuracy = float(mean_report.get('acc', 'nan'))
-                    msg += "{}: {:.4f}".format(field, accuracy)
+                    msg += f"{field}: {accuracy:.4f}"
                 elif field in ['acc_seq', 'sequence_accuracy']:
                     accuracy = float(mean_report.get('acc_seq', 'nan'))
-                    msg += "{}: {:.4f}".format(field, accuracy)
+                    msg += f"{field}: {accuracy:.4f}"
                 elif field in ['ntacc', 'non_trivial_accuracy']:
                     accuracy = float(mean_report.get('ntacc', 'nan'))
-                    msg += "{}: {:.4f}".format(field, accuracy)
+                    msg += f"{field}: {accuracy:.4f}"
                 elif field in ['rest_acc', 'restore', 'restore_accuracy']:
                     accuracy = mean_report.get('rest_acc', 'nan')
-                    msg += "{}: {:.4f}".format(field, accuracy)
+                    msg += f"{field}: {accuracy:.4f}"
                 elif field in ['cont_acc', 'continuity_accuracy']:
                     accuracy = mean_report.get('cont_acc', 'nan')
-                    msg += "{}: {:.3f}".format(field, accuracy)
+                    msg += f"{field}: {accuracy:.3f}"
                 elif field in ['ppl', 'perplexity']:
                     ppl = float(mean_report.get('ppl', 'nan'))
-                    msg += "{}: {:.3f}".format(field, ppl)
+                    msg += f"{field}: {ppl:.3f}"
                 elif field in ['ntppl', 'non_trivial_perplexity']:
                     ppl = float(mean_report.get('ntppl', 'nan'))
-                    msg += "{}: {:.3f}".format(field, ppl)
+                    msg += f"{field}: {ppl:.3f}"
                 elif field in ['loss']:
                     loss = float(mean_report.get('loss', 'nan'))
-                    msg += "{}: {:.4f}".format(field, loss)
+                    msg += f"{field}: {loss:.4f}"
                 elif field in ['gold', 'gold_score']:
                     gold_score = float(mean_report.get('gold', 'nan'))
                     #if gold_score > 0:
                     if math.isfinite(gold_score):
-                        msg += "{}: {:.4f}".format(field, gold_score)
+                        msg += f"{field}: {gold_score:.4f}"
                 elif field in ['cost', 'pcost', 'ponder_cost']:
                     ponder_cost = float( mean_report.get('ponder_cost', 'nan') )
                     if ponder_cost > 0:
-                        msg += "{}: {:.3f}".format(field, ponder_cost)
+                        msg += f"{field}: {ponder_cost:.3f}"
                 elif field in ['gnorm', 'gradient_norm']:
                     msg += "{}: {:.3f}".format(field, mean_report['gnorm'])
                 elif field in ['clip', 'gradient_clip']:
@@ -878,24 +871,24 @@ class Trainer(object):
                 elif field in ['samples', 'fed_samples']:
                     if self.model.training:
                         #msg += "{}: {}".format(field, config.fed_samples)
-                        msg += "{}: {:,d}".format(field, cdata.log.fed_samples)
+                        msg += f"{field}: {cdata.log.fed_samples:,d}"
                 elif field in ['steps']:
                     if self.model.training:
                         #msg += "{}: {}".format(field, config.steps)
-                        msg += "{}: {}".format(field, cdata.log.train_step)
+                        msg += f"{field}: {cdata.log.train_step}"
                 elif field in ['elapsed']:
                     if self.model.training:
                         #str_elapsed = format_time(cdata.log.elapsed)
                         str_elapsed = format_time(progress['elapsed'])
-                        msg += "{}: {}".format(field, str_elapsed)
+                        msg += f"{field}: {str_elapsed}"
                 elif field in ['tokens', 'fed_tokens']:
                     if self.model.training:
-                        msg += "{}: {:,d}".format(field, cdata.log.fed_tokens)
+                        msg += f"{field}: {cdata.log.fed_tokens:,d}"
                 elif field in ['tokens/s', 'tokens/sec']:
                     if self.model.training:
                         delta_tokens = cdata.log.fed_tokens - progress['last_tokens']
-                        msg += "{}: {:.1f}".format(field, delta_tokens / delta)
-            except Exception as e:
+                        msg += f"{field}: {delta_tokens / delta:.1f}"
+            except Exception:
                 #logger.exception(e)
                 pass
         logger.info(msg)
@@ -1012,7 +1005,7 @@ class Trainer(object):
                         else:
                             new_batch_size = cdata.train.batch_size - int(cdata.model.max_length / 2)
                         cdata.train.batch_size = max(cdata.train.min_batch_size, new_batch_size)
-                        logger.debug("new batch size: {}".format(cdata.train.batch_size))
+                        logger.debug(f"new batch size: {cdata.train.batch_size}")
                         continue
                 #logger.exception(e)
                 raise e
@@ -1075,13 +1068,13 @@ class Trainer(object):
             self.last_worst_criterion = self.config.get('log.min_worst_train_ppl')
         train_size = len(self.train_data)
         if len(train_df) == 0:
-            logger.info("train dataset: (following lines)\n{}".format(repr(train_df)))
+            logger.info(f"train dataset: (following lines)\n{train_df!r}")
             logger.info("nothing to train, finishing the training")
             return False
         #dprint(self.config.to_json(indent=2))
         dprint(self.config.to_json(indent=2, purge=True))
         str_log = str(self.config.to_json('log', indent=2, purge=True))
-        logger.info("training log (following lines):\n{}".format(str_log))
+        logger.info(f"training log (following lines):\n{str_log}")
         if 'max_steps' in self.config.data.model:
             if self.config.data.model.max_steps is not None:
                 if self.config.data.train.schedule_num_steps:
@@ -1094,22 +1087,22 @@ class Trainer(object):
         hostname = os.uname().nodename
         logger.debug("hostname: " + hostname)
         logger.debug("process id: " + str(os.getpid()))
-        logger.debug("using devices: {}".format(args.gpu))
+        logger.debug(f"using devices: {args.gpu}")
         #trainer.optimizer.new_epoch()
         #self.optimizer.new_epoch()
-        logger.info("Epoch: {}".format(status.epoch))
-        logger.info("Batch Size: {}".format(cdata.train.batch_size))
+        logger.info(f"Epoch: {status.epoch}")
+        logger.info(f"Batch Size: {cdata.train.batch_size}")
         logger.info("building curriculum batches...")
         self.build_train_batches()
         train_batches = self.train_batches
         challenge_batches = self.challenge_batches
         if cdata.train.max_batches > 0 and len(train_batches) > cdata.train.max_batches:
-            logger.info("having {} batches, limiting up to {} batches".format(len(train_batches), cdata.train.max_batches))
+            logger.info(f"having {len(train_batches)} batches, limiting up to {cdata.train.max_batches} batches")
             train_batches = train_batches[:cdata.train.max_batches]
         start = time.time()
         try:
             if challenge_batches is not None:
-                logger.info("reviewing {} difficult batches...".format(len(challenge_batches)))
+                logger.info(f"reviewing {len(challenge_batches)} difficult batches...")
                 #self.feed_batches(challenge_batches, report=True)
                 #self.feed_batches(challenge_batches, report=True, timeout=cdata.train.timeout)
                 #self.feed_batches(challenge_batches, train=True, show_report=True, timeout=cdata.train.timeout)
@@ -1154,7 +1147,7 @@ class Trainer(object):
                     #min_batch_size = cdata.train.min_batch_size * cdata.model.max_length
                     #min_batch_size = cdata.train.min_batch_size * cdata.model.max_length / 2
                     min_batch_size = cdata.train.min_batch_size * int(max(1, cdata.model.max_length / 2))
-                logger.info("falling back with batch size {}...".format(min_batch_size))
+                logger.info(f"falling back with batch size {min_batch_size}...")
                 curriculum_data = train_df.loc[pd.concat(train_batches).index]
                 fallback_data = curriculum_data[curriculum_data.criterion <= 0]
                 #fallback_data = fallback_data.sort_values(['len_x', 'len_t'])
@@ -1182,7 +1175,7 @@ class Trainer(object):
                     #long_repr = repr(long_data[['len_x', 'len_t', 'cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
                     long_repr = repr(long_data[self.len_fields + ['cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
                     logger.debug("long training samples:\n" + long_repr)
-                    logger.info("dropping {} training examples with too long sentences".format(len(long_data)))
+                    logger.info(f"dropping {len(long_data)} training examples with too long sentences")
                     train_df.drop(long_data.index, inplace=True)
                 elapsed += (time.time() - start)
                 cdata.log.elapsed = elapsed
@@ -1240,12 +1233,12 @@ class Trainer(object):
                 dprint(resume_entry)
                 #self.load_status(workdir, record=resume_entry, load_optimizer=True)
                 self.load_status(workdir, record=resume_entry, load_optimizer=True, reuse_dataset=True)
-                logger.info("successfully loaded: {}".format(resume_entry))
+                logger.info(f"successfully loaded: {resume_entry}")
                 break
             except Exception as e:
                 #logger.debug(repr(e))
                 logger.exception(e)
-                logger.info("failed to load: {}".format(resume_entry))
+                logger.info(f"failed to load: {resume_entry}")
                 raise e
                 list_failed.append(resume_entry)
         return self
@@ -1264,7 +1257,7 @@ class Trainer(object):
         safe_remove(config_path, log=False)
         with open(config_path, 'w') as fobj:
             if log:
-                logger.info("saving configuration into '{}'".format(config_path))
+                logger.info(f"saving configuration into '{config_path}'")
             #fobj.write(self.config.to_json(indent=2))
             fobj.write(self.config.to_json(indent=2, purge=True),)
         return
@@ -1334,7 +1327,7 @@ class Trainer(object):
         model_path = os.path.join(recdir, model_name)
         opt_path   = os.path.join(recdir, opt_name)
         safe_remove(model_path, log=False)
-        logger.info("saving model into '{}' ...".format(model_path))
+        logger.info(f"saving model into '{model_path}' ...")
         #torch.save(self.model, 'test.pt')
         state_dict = OrderedDict()
         #dprint(self.config.to_dict(ordered=True))
@@ -1351,7 +1344,7 @@ class Trainer(object):
         torch.save(state_dict, model_path)
         #dprint(state_dict['model'])
         safe_remove(opt_path, log=False)
-        logger.info("saving optimizer params into '{}' ...".format(opt_path))
+        logger.info(f"saving optimizer params into '{opt_path}' ...")
         torch.save(self.optimizer.state_dict(), opt_path)
         self.save_config(workdir, record=record)
         return
@@ -1372,7 +1365,7 @@ class Trainer(object):
         last_best_score = self.config.get(config_field)
         try:
             score = float(score)
-        except Exception as e:
+        except Exception:
             return False
         if math.isfinite(score):
             update = False
@@ -1385,12 +1378,12 @@ class Trainer(object):
             if update:
                 if last_best_score is None:
                     #log("new {} ({})".format(config_name, score))
-                    logger.info("new {}: {}".format(config_name, score))
+                    logger.info(f"new {config_name}: {score}")
                 else:
                     if ascend:
-                        logger.info("new {} ({}) > last best ({})".format(config_name, score, last_best_score))
+                        logger.info(f"new {config_name} ({score}) > last best ({last_best_score})")
                     else:
-                        logger.info("new {} ({}) < last best ({})".format(config_name, score, last_best_score))
+                        logger.info(f"new {config_name} ({score}) < last best ({last_best_score})")
                 self.config[config_field] = score
                 self.save_config(path, record='tmp', log=False)
                 if save_model:
@@ -1404,7 +1397,7 @@ class Trainer(object):
         config_field = 'log.' + record_name
         try:
             score = float(score)
-        except Exception as e:
+        except Exception:
             return False
         if math.isfinite(score):
             self.config[config_field] = score
@@ -1426,7 +1419,7 @@ class Trainer(object):
         df = self.train_df
         df.priority = df.criterion * df.cost * df.feed_count * df.last_step / (cdata.log.train_step + 1)
         safe_remove(self.temp_train_data_path)
-        logger.info("saving dataset into: {}".format(self.temp_train_data_path))
+        logger.info(f"saving dataset into: {self.temp_train_data_path}")
         self.train_data.save(self.temp_train_data_path, cdata.train.max_samples_per_epoch, None, 1)
         df.to_csv(open(self.temp_train_data_path, 'a'), sep='\t', header=False)
         #safe_rename(self.train_data_path, self.prev_train_data_path)
@@ -1493,7 +1486,7 @@ class Trainer(object):
             # using existing sp model
             if args.sentencepiece != sp_model_path:
                 if not os.path.exists(args.sentencepiece):
-                    logger.warn("[ERROR] {} does not exist!".format(args.sentencepiece))
+                    logger.warn(f"[ERROR] {args.sentencepiece} does not exist!")
                     sys.exit(1)
                 dprint(sp_model_path)
                 #safe_link(args.sentencepiece, sp_model_path)
@@ -1536,7 +1529,7 @@ class Trainer(object):
                 safe_remove(self.train_data_path)
                 #logger.info("formatting train data into: {}".format(self.main_train_data_path))
                 #logger.info("formatting train data into: {}".format(self.worker_temp_path))
-                logger.info("formatting train data into: {}".format(self.temp_train_data_path))
+                logger.info(f"formatting train data into: {self.temp_train_data_path}")
                 #build_train_data(self.main_train_data_path, args.train_file, self.vocab)
                 #build_train_data(self.main_fields, self.worker_temp_path, args.train_file, self.vocab)
                 #build_train_data(self.main_fields, self.worker_temp_path, args.train_file, self.vocab, max_length=cdata.model.max_length)
@@ -1602,7 +1595,7 @@ class Trainer(object):
         else:
             self.device = torch.device('cpu')
         if self.model is not None:
-            logger.debug("moving model to device: {}, dtype: {}".format(self.device, self.dtype))
+            logger.debug(f"moving model to device: {self.device}, dtype: {self.dtype}")
             self.model.to(self.device, self.dtype)
             dprint(self.optimizer)
             dprint(self.model.device)
@@ -1672,7 +1665,7 @@ class Trainer(object):
         params = cls.Model.get_config(**params)
         dprint(params)
         if 'preset_choices' in params:
-            PRESET_CHOICES = ['ref', 'reference'] + list(sorted(params['preset_choices']))
+            PRESET_CHOICES = ['ref', 'reference'] + sorted(params['preset_choices'])
             #dprint(PRESET_CHOICES)
         #dprint(config.to_json(indent=2, upstream=True))
         config.get('model.//')
@@ -1732,7 +1725,7 @@ class Trainer(object):
         report['gnorm'] = gnorm
         if not math.isfinite(gnorm):
             #dprint(gnorm)
-            logger.debug("detected NaN on backward, gnorm: {}".format(gnorm))
+            logger.debug(f"detected NaN on backward, gnorm: {gnorm}")
             #report['clip'] = 1
             return
         if cdata.train.gradient_clipping:
@@ -1781,8 +1774,8 @@ class Trainer(object):
             self.save_last_score(workdir, test_report, 'mrr',   'test mrr')
             self.save_last_score(workdir, test_report, 'map',   'test map')
             for k in LIST_K_FOR_RECALL:
-                field = 'r_at_{}'.format(k)
-                display = 'test {}'.format(field)
+                field = f'r_at_{k}'
+                display = f'test {field}'
                 self.save_last_score(workdir, test_report, field, display)
             self.save_last_score(workdir, test_report, 'precision', 'test precision')
             self.save_last_score(workdir, test_report, 'recall', 'test recall')
@@ -1808,8 +1801,8 @@ class Trainer(object):
             self.save_best_status(workdir, dev_report, 'mrr',   'dev mrr', ascend=True)
             self.save_best_status(workdir, dev_report, 'map',   'dev map', ascend=True)
             for k in LIST_K_FOR_RECALL:
-                field = 'r_at_{}'.format(k)
-                display = 'dev {}'.format(field)
+                field = f'r_at_{k}'
+                display = f'dev {field}'
                 self.save_best_status(workdir, dev_report, field, display, ascend=True, save_model=False)
             self.save_best_status(workdir, dev_report, 'precision', 'dev precision', ascend=True)
             self.save_best_status(workdir, dev_report, 'recall', 'dev recall', ascend=True)
@@ -1889,7 +1882,7 @@ class Trainer(object):
         if default is None:
             default = cls.default
         parser = {}
-        parser['main'] = main= argparse.ArgumentParser("{} Trainer".format(model_name), add_help=False)
+        parser['main'] = main= argparse.ArgumentParser(f"{model_name} Trainer", add_help=False)
         main.add_argument('--help', '-h', action='store_true', help=_('show this help message and exit'))
         main.add_argument('workdir', help='directory path to write the training dataset, trained models, evaluation status, etc', nargs='?')
         main.add_argument('train_files', metavar='train_file', help='path to the training data (tab separated values, or column-split files)', nargs='*')
@@ -1905,9 +1898,9 @@ class Trainer(object):
 
         parser['model'] = group = main.add_argument_group('model', 'hyper-parameters for the model')
         cls.add_argument(group, False, '--float16', '--fp16', '--half', type=strtobool, nargs='?', const=True, help='16bit floating point mode (experimental)')
-        group.add_argument('--vocab-size', '--vocab', '-V', type=int, default=None, help='Vocabulary size (number of unique tokens) (default: {})'.format(default.model.vocab_size))
+        group.add_argument('--vocab-size', '--vocab', '-V', type=int, default=None, help=f'Vocabulary size (number of unique tokens) (default: {default.model.vocab_size})')
         cls.add_argument(group, default.model.activation, '--activation', '--act', '-A', type=str, choices=['gelu', 'mish', 'relu', 'swish'], help='activation function')
-        group.add_argument('--embed-size', '--embed', '--es', '-E', type=int, default=None, help='Number of embedding nodes (default: {})'.format(default.model.embed_size))
+        group.add_argument('--embed-size', '--embed', '--es', '-E', type=int, default=None, help=f'Number of embedding nodes (default: {default.model.embed_size})')
         cls.add_argument(group, default.model.hidden_size, '--hidden-size', '--hidden', '--hs', '-H', type=int, help='Number of hidden layer nodes')
         cls.add_argument(group, default.model.inner_size, '--inner-size', '--inner', '--is', type=int, help='Number of inner nodes in feed-forward layer')
         cls.add_argument(group, default.model.recurrence, '--recurrence', '--rec', type=str, choices=['basic', 'act', 'act-prob', 'act-accum'], help='Auto-regression type for universal model')
@@ -1928,42 +1921,42 @@ class Trainer(object):
         parser['training'] = group = main.add_argument_group('training', 'arguments for training options')
         cls.add_argument(group, default.train.batch_size, '--batch-size', '--batch', '--bs', '-B', type=int, help='Size of mini-batch')
         group.add_argument('--auto-batch-size', '--auto-batch', '--ab', type=strtobool, default=True, help='Using auto-justify mode of mini-batch size (default: %(default)s)')
-        group.add_argument('--batch-type', '--bt', type=str, default=None, choices=['samples', 'tokens'], help='Batch type (default: {})'.format(default.train.batch_type))
-        group.add_argument('--curriculum', '-C', type=str, default=None, choices=['none', 'len', 'crit', 'crit-len'], help='First priority criterion for training (default: {})'.format(default.train.curriculum))
-        group.add_argument('--dropout-ratio', '--dropout', type=float, default=None, help='Dropout Rate (default: {})'.format(default.train.dropout_ratio))
+        group.add_argument('--batch-type', '--bt', type=str, default=None, choices=['samples', 'tokens'], help=f'Batch type (default: {default.train.batch_type})')
+        group.add_argument('--curriculum', '-C', type=str, default=None, choices=['none', 'len', 'crit', 'crit-len'], help=f'First priority criterion for training (default: {default.train.curriculum})')
+        group.add_argument('--dropout-ratio', '--dropout', type=float, default=None, help=f'Dropout Rate (default: {default.train.dropout_ratio})')
         group.add_argument('--num-epochs', '--epochs', '-ne', type=int, default=100, help='Number of epochs (default: %(default)s)')
         group.add_argument('--gpu', '-G', type=int, default=[-1], help='GPU IDs (negative value indicates CPU) (default: %(default)s)', nargs='+')
         group.add_argument('--import-embed', '--pre-trained-vectors', type=str, default=None, help='Path to pre-trained vectors to import for embedding initialization')
         cls.add_argument(group, default.train.fix_imported_vectors, '--fix-imported-vectors', '--freeze-imported-vectors', '--fix-vectors', '--fix', '--freeze', type=strtobool, nargs='?', help='Whether to fix (not train) imported token vectors')
-        group.add_argument('--max-batches', '--batches', type=int, default=None, help='Maximum batches to train in one epoch (default: {})'.format(default.train.max_batches))
-        group.add_argument('--max-samples-per-epoch', '--samples', type=int, default=None, help='Maximum samples to train in one epoch (default: {})'.format(default.train.max_samples_per_epoch))
-        group.add_argument('--min-batch-size', '--min-batch', '--mb', type=int, default=None, help='Minimum batch size for fallbacking (default: {})'.format(default.train.min_batch_size))
+        group.add_argument('--max-batches', '--batches', type=int, default=None, help=f'Maximum batches to train in one epoch (default: {default.train.max_batches})')
+        group.add_argument('--max-samples-per-epoch', '--samples', type=int, default=None, help=f'Maximum samples to train in one epoch (default: {default.train.max_samples_per_epoch})')
+        group.add_argument('--min-batch-size', '--min-batch', '--mb', type=int, default=None, help=f'Minimum batch size for fallbacking (default: {default.train.min_batch_size})')
         #group.add_argument('--process_size', '--proc', '-P', type=int, default=-1, help='Maximum training samples taken for this process (save extra data to storage')
-        group.add_argument('--warmup-steps', '--warmup', '--ws', '-W', type=int, default=None, help='Number of warming up steps (default: {})'.format(default.train.warmup_steps))
+        group.add_argument('--warmup-steps', '--warmup', '--ws', '-W', type=int, default=None, help=f'Number of warming up steps (default: {default.train.warmup_steps})')
         #group.add_argument('--start_steps', '--start', type=int, default=None, help='Step count starting from (default: %(default)s)')
         #group.add_argument('--train-factor', '--factor', '--tf', '-F', type=float, default=None, help='Training factor for learning rate (default: {})'.format(default.train.factor))
         cls.add_argument(group, default.train.warmup_factor, '--warmup-factor', '--train-factor', '--factor', '--wf', '-F', type=float, help='Training factor for learning rate')
         group.add_argument('--resume', '-R', type=str, help='list of path to the resuming models (ends with ".npz") or suffix name (e.g. "latest", "best_dev_loss")', nargs='*')
-        group.add_argument('--interval', '-I', type=float, default=None, help='Interval of training report (in seconds, default: {})'.format(default.log.interval))
+        group.add_argument('--interval', '-I', type=float, default=None, help=f'Interval of training report (in seconds, default: {default.log.interval})')
         group.add_argument('--filter-noisy-samples', '--filter-noise', '--filter', type=strtobool, default=None, nargs='?', const=True, help='Filtering noisy training examples gradually with training steps')
-        group.add_argument('--max-steps', type=int, default=None, help='Maximum number of universal transformer steps (default: {})'.format(default.model.max_steps))
+        group.add_argument('--max-steps', type=int, default=None, help=f'Maximum number of universal transformer steps (default: {default.model.max_steps})')
         group.add_argument('--save-models', '--save-model', '--save', type=strtobool, default=True, help='Enable to save trained models (default: %(default)s')
         group.add_argument('--initializer', '--initialize', '--init', type=str, default=None, choices=['he-normal', 'orthogonal', 'pytorch'], help='Parameter initializing method')
-        group.add_argument('--random-seed', '--seed', '--rs', type=int, default=None, help='Random seed (default: {})'.format(default.train.random_seed))
-        group.add_argument('--time-penalty', '--tp', type=float, default=None, help='Penalty for pondering time (default: {})'.format(default.train.time_penalty))
-        group.add_argument('--timeout', '--train-timeout', '-T', type=float, default=None, help='Timeout duration for truncation in feeding training batches (default: {})'.format(default.train.timeout))
-        group.add_argument('--schedule-num-steps', '--schedule-steps', type=strtobool, default=None, nargs='?', const=True, help='Scheduling number of steps (default: {})'.format(default.train.schedule_num_steps))
-        group.add_argument('--review-rate', '--review', '--rr', type=float, default=None, help='Ratio to review (feed already trained samples) in each epoch (default: {})'.format(default.train.review_rate))
+        group.add_argument('--random-seed', '--seed', '--rs', type=int, default=None, help=f'Random seed (default: {default.train.random_seed})')
+        group.add_argument('--time-penalty', '--tp', type=float, default=None, help=f'Penalty for pondering time (default: {default.train.time_penalty})')
+        group.add_argument('--timeout', '--train-timeout', '-T', type=float, default=None, help=f'Timeout duration for truncation in feeding training batches (default: {default.train.timeout})')
+        group.add_argument('--schedule-num-steps', '--schedule-steps', type=strtobool, default=None, nargs='?', const=True, help=f'Scheduling number of steps (default: {default.train.schedule_num_steps})')
+        group.add_argument('--review-rate', '--review', '--rr', type=float, default=None, help=f'Ratio to review (feed already trained samples) in each epoch (default: {default.train.review_rate})')
         group.add_argument('--eval-only', '--no-train', '--eval', action='store_true', help='Evaluation only (skip training)')
         group.add_argument('--eval-train', '--et', action='store_true', help='Evaluate also training data with task specific measurement (not suggested for large data)')
 
         parser['optimizers'] = group = main.add_argument_group('optimizers', 'general optimizers options')
-        group.add_argument('--optimizer', '-O', type=str, default=None, choices=['sgd', 'adam', 'amsgrad', 'adabound', 'amsbound', 'lamb'], help='Optimizer (default: {})'.format(default.train.optimizer))
+        group.add_argument('--optimizer', '-O', type=str, default=None, choices=['sgd', 'adam', 'amsgrad', 'adabound', 'amsbound', 'lamb'], help=f'Optimizer (default: {default.train.optimizer})')
         group.add_argument('--move-optimizer', '-M', action='store_true', help='move optimizer states into CPU memory (more efficifient for video memory usage, less for computation')
         group.add_argument('--gradient-clipping', '--grad-clip', '--gc', type=float, default=None, help='Gradient clipping (default: %(default)s)')
         cls.add_argument(group, default.train.sgd_learning_rate, '--learning-rate', '--lr', type=float, help='Optimizer learning rate')
-        group.add_argument('--weight-decay-rate', '--weight-decay', '--l2-decay', '--decay', '--wd', type=float, default=None, help='Gradient clipping (default: {})'.format(default.train.weight_decay_rate))
-        group.add_argument('--weight-decay-warmup-steps', '--weight-decay-warmup', '--wdws', type=int, default=None, help='Number of warming up steps for weight decay (default: {})'.format(default.train.weight_decay_warmup_steps))
+        group.add_argument('--weight-decay-rate', '--weight-decay', '--l2-decay', '--decay', '--wd', type=float, default=None, help=f'Gradient clipping (default: {default.train.weight_decay_rate})')
+        group.add_argument('--weight-decay-warmup-steps', '--weight-decay-warmup', '--wdws', type=int, default=None, help=f'Number of warming up steps for weight decay (default: {default.train.weight_decay_warmup_steps})')
 
         #parser['optimizers-adam'] = group = main.add_argument_group('optimizers-adam', 'specific optimizers options for Adam/AMSGrad/AdaBound/AMSBound')
         use_adam_family = (default.train.optimizer in ['adam', 'adamax', 'amsgrad', 'adabound', 'amsbound', 'lamb'])
@@ -2031,7 +2024,7 @@ def main(Trainer, modelname):
             if not args.resume:
                 ask_continue_if_exist(pidpath)
         else:
-            logger.error("other training process ({}) is running".format(pid))
+            logger.error(f"other training process ({pid}) is running")
             return False
     # saving new process id
     with open(pidpath, 'w') as fobj:
@@ -2045,7 +2038,7 @@ def main(Trainer, modelname):
                 device = torch.device(gpu_id)
             else:
                 device = torch.device('cpu')
-            logger.debug("testing device: {}".format(device))
+            logger.debug(f"testing device: {device}")
             try:
                 torch.empty(0).to(device)
                 logger.debug("-> OK")
@@ -2125,7 +2118,7 @@ def main(Trainer, modelname):
                     pass #ok
                 else:
                     break
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             logger.warning("received keyboard interruption")
             try:
                 if trainer.device.type == 'cuda':
@@ -2143,7 +2136,7 @@ def main(Trainer, modelname):
                     status.epoch -= 1
                     trainer.save_latest_status()
                 logger.info("exiting training")
-            except KeyboardInterrupt as e:
+            except KeyboardInterrupt:
                 logger.warning("received keyboard interruption again")
             sys.exit(1)
 

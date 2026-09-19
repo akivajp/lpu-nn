@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import math
@@ -9,7 +8,6 @@ import torch
 from torch import nn
 
 # local
-from lpu_nn.common.utils import parameterize
 from lpu_nn import modeling
 
 def gelu(x, inplace=False):
@@ -47,7 +45,7 @@ class GELU(modeling.Module):
         """
         :param bool inplace:
         """
-        super(GELU,self).__init__()
+        super().__init__()
         self.inplace = inplace
 
     def forward(self, x):
@@ -62,7 +60,7 @@ class Mish(modeling.Module):
         """
         :param bool inplace:
         """
-        super(Mish,self).__init__()
+        super().__init__()
         self.inplace = inplace
 
     def forward(self, x):
@@ -78,7 +76,7 @@ class Swish(modeling.Module):
         :param float or torch.Tensor init_beta:
         :param bool inplace:
         """
-        super(Swish,self).__init__()
+        super().__init__()
         if isinstance(shape, int):
             shape = [shape]
         self.beta = nn.Parameter(torch.full(shape, init_beta))
@@ -93,9 +91,9 @@ class Swish(modeling.Module):
 
     def extra_repr(self):
         if self.inplace:
-            return '{}, inplace'.format(self.beta.shape)
+            return f'{self.beta.shape}, inplace'
         else:
-            return '{}'.format(self.beta.shape)
+            return f'{self.beta.shape}'
 
 class Swish1(modeling.Module):
     def __init__(self, inplace=False):
@@ -129,7 +127,7 @@ def get_activator(name, size):
         return nn.ReLU()
     if name == 'tanh':
         return nn.Tanh()
-    raise ValueError("unknown name for activation function: {}".format(name))
+    raise ValueError(f"unknown name for activation function: {name}")
 
 def get_gain(name):
     if name == 'none':
@@ -158,4 +156,4 @@ def get_gain(name):
         return 2 ** 0.5
     if name == 'tanh':
         return 5.0 / 3
-    raise ValueError("unknown name for activation function: {}".format(name))
+    raise ValueError(f"unknown name for activation function: {name}")

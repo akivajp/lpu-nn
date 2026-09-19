@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 # system
 import copy
@@ -15,7 +14,7 @@ logger = logging.getColorLogger(__name__)
 
 class Module(nn.Module):
     def __init__(self):
-        super(Module,self).__init__()
+        super().__init__()
         self.device = torch.device('cpu')
         self.dtype = torch.float32
 
@@ -87,7 +86,7 @@ class ModuleList(nn.ModuleList):
 
 class ModuleArray(nn.ModuleList):
     def __init__(self, module, count):
-        super(ModuleArray,self).__init__()
+        super().__init__()
         self.count = count
         for _ in range(count):
             self.append(copy.deepcopy(module))
@@ -95,7 +94,7 @@ class ModuleArray(nn.ModuleList):
     def __repr__(self):
         name = self.__class__.__name__
         first = _addindent(repr(self[0]), 2)
-        return "{}(\n  {} x [{}]\n)".format(name, self.count, first)
+        return f"{name}(\n  {self.count} x [{first}]\n)"
 
     def to(self, *args, **kwargs):
         return Module.to(self, *args, **kwargs)

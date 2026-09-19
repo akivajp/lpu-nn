@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import argparse
-import os
 import sys
 import time
 
 # 3rd
-import pandas as pd
-import torch
 
 # local
 from lpu.common import logging
@@ -73,7 +69,7 @@ def main():
                     for seq, score in pred:
                         dprint( (score, seq) )
             if len(pred) > 0:
-                sys.stdout.write("{}\n".format(trainer.vocab.decode(pred[0][0])))
+                sys.stdout.write(f"{trainer.vocab.decode(pred[0][0])}\n")
             else:
                 sys.stdout.write("\n")
             dprint(time.time() - time_start)

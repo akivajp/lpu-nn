@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # 3rd
 import torch
@@ -25,7 +24,7 @@ def copy_model(src, dst, depth=0):
         param_dict[name] = param
     for name, param in dst.named_parameters():
         if name in param_dict:
-            logger.debug("copying parameter: {}".format(name))
+            logger.debug(f"copying parameter: {name}")
             param.data = param_dict[name].data
 
 def flip(t, dims):
@@ -57,7 +56,7 @@ def purge_tensor(tensor, mask, else_value=0.0):
     elif tensor.shape[:2] == mask.shape:
         return torch.where(mask[:,:,None], tensor, else_tensor)
     else:
-        raise ValueError("tensor.shape: {}, mask.shape: {}".format(tensor.shape, mask.shape))
+        raise ValueError(f"tensor.shape: {tensor.shape}, mask.shape: {mask.shape}")
 
 def make_attention_mask(query_id_seq, key_id_seq, padding=0):
     """
@@ -104,7 +103,7 @@ def format_state(state, indent=0):
         return str_indent + "None"
     elif isinstance(state, torch.Tensor):
         str_shape = str.join(', ', map(str, state.shape))
-        return str_indent + "Tensor[{}]".format(str_shape)
+        return str_indent + f"Tensor[{str_shape}]"
     elif isinstance(state, (list,tuple)):
         if isinstance(state, list):
             s = str_indent + '[\n'
@@ -112,7 +111,7 @@ def format_state(state, indent=0):
             s = str_indent + '(\n'
         for elem in state:
             str_elem = format_state(elem, indent+1)
-            s = s + "{},\n".format(str_elem)
+            s = s + f"{str_elem},\n"
         if isinstance(state, list):
             s = s + str_indent + ']'
         else:
@@ -121,13 +120,13 @@ def format_state(state, indent=0):
     elif isinstance(state, dict):
         s = str_indent + '{\n'
         for key, val in state.items():
-            s = s + ("  " * (indent+1))+ "{}:\n".format(key)
+            s = s + ("  " * (indent+1))+ f"{key}:\n"
             str_val = format_state(val, indent+2)
-            s = s + "{}\n".format(str_val)
+            s = s + f"{str_val}\n"
         s = s + str_indent + '}'
         return s
     else:
-        raise TypeError("unsupported type: {}".format(type(state).__name__))
+        raise TypeError(f"unsupported type: {type(state).__name__}")
 
 def format_state_list(state_list):
     if state_list is None:
@@ -136,7 +135,7 @@ def format_state_list(state_list):
         return "[]"
     s = "[\n"
     s += format_state(state_list[0], 1) + "\n"
-    s += "] * {}".format(len(state_list))
+    s += f"] * {len(state_list)}"
     return s
 
 def get_sample_state(state, i):
@@ -152,7 +151,7 @@ def get_sample_state(state, i):
     elif state is None:
         return None
     else:
-        raise TypeError("unsupported type: {}".format(type(state).__name__))
+        raise TypeError(f"unsupported type: {type(state).__name__}")
 
 def split_state(state, batch_size):
     return list(get_sample_state(state, i) for i in range(batch_size))
@@ -175,5 +174,5 @@ def stack_state_list(state_list):
         keys = first.keys()
         return dict((key, stack_state_list([state[key] for state in state_list])) for key in keys)
     else:
-        raise TypeError("unsupported type: {}".format(type(first).__name__))
+        raise TypeError(f"unsupported type: {type(first).__name__}")
 

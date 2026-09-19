@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import unicodedata
@@ -10,14 +9,10 @@ import torch
 from torch import nn
 
 # local
-from lpu_nn.common import criteria
 from lpu.common import logging
-from lpu_nn.common import utils
 from lpu_nn.common.vocab import dict_str2vector
 from lpu_nn import modeling
 from lpu_nn.modeling import lstm
-from lpu_nn.modeling import transformer
-from lpu_nn.modeling.activation import get_gain
 
 logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
@@ -43,7 +38,7 @@ def extract_vector(token, str2vector):
 class Embedding(nn.Embedding):
     def __init__(self, num_ids, embed_size, padding=None, idmap=None, **kwargs):
         self.hparams = kwargs
-        super(Embedding,self).__init__(num_ids, embed_size)
+        super().__init__(num_ids, embed_size)
         weight_mask = torch.zeros(self.weight.shape)
         self.weight_mask = nn.Parameter(weight_mask, requires_grad=False)
         self.idmap = idmap
@@ -58,15 +53,15 @@ class Embedding(nn.Embedding):
         name = self.__class__.__name__
         initializer = self.hparams.get('initializer')
         if initializer in ['orthogonal']:
-            logger.debug("initializing {} weight orthogonally".format(name))
+            logger.debug(f"initializing {name} weight orthogonally")
             nn.init.orthogonal_(self.weight, gain=1.0)
         elif initializer in ['he-normal']:
-            logger.debug("initializing {} weight with Kaiming He's Normal".format(name))
+            logger.debug(f"initializing {name} weight with Kaiming He's Normal")
             #std = 1.0 / (self.num_embeddings ** 0.5)
             std = 1.0
             nn.init.normal_(self.weight, std=std)
         else: # if initilizer in ['pytorch', None]:
-            logger.debug("initializing {} weight with PyTorch's default method".format(name))
+            logger.debug(f"initializing {name} weight with PyTorch's default method")
             pass # pytorch default initializer
         #dprint(self.idmap)
         #dprint(len(dict_str2vector))
@@ -97,7 +92,7 @@ class Embedding(nn.Embedding):
                     #else:
                     #    dprint(s)
                 # normalizing
-                logger.debug("imported {} pre-trained vectors".format(count))
+                logger.debug(f"imported {count} pre-trained vectors")
                 #dprint(dict(self.named_parameters()))
         logger.debug("re-scaling the initial weights")
         dprint(self.weight.data.abs().max())
@@ -122,7 +117,7 @@ class Embedding(nn.Embedding):
             zero = torch.tensor(0).to(ids.device)
             mask = ids != self.padding # (D1,...,Dn)
             ids = torch.where(mask, ids, zero) # dummy
-        emb = super(Embedding,self).forward(ids) # (D1,...,Dn, E)
+        emb = super().forward(ids) # (D1,...,Dn, E)
         if fix_vectors and self.training:
             if hasattr(self, 'weight_mask'):
                 fix_mask = nn.functional.embedding(ids, self.weight_mask) > 0.0
@@ -142,9 +137,9 @@ class Embedding(nn.Embedding):
 
     def extra_repr(self):
         if self.padding is None:
-            return '{}, {}'.format(self.num_ids, self.embed_size)
+            return f'{self.num_ids}, {self.embed_size}'
         else:
-            return '{}, {}, padding={}'.format(self.num_ids, self.embed_size, self.padding)
+            return f'{self.num_ids}, {self.embed_size}, padding={self.padding}'
 
     def to(self, *args, **kwargs):
         return modeling.Module.to(self, *args, **kwargs)
@@ -157,7 +152,7 @@ class CharacterEmbedding(Embedding):
         self.bos = 0
         self.eos = 1
         self.embed_size = embed_size
-        super(CharacterEmbedding, self).__init__(self.num_ids, self.embed_size, self.padding)
+        super().__init__(self.num_ids, self.embed_size, self.padding)
 
     def bytes2tensor(self, codes, add_symbols=True):
         assert isinstance(codes, bytes)
@@ -241,6 +236,6 @@ class ContextualStringEmbedding(modeling.Module):
             elif isinstance(seq.iloc[0], str): # assuming codes
                 batch = [self.str2tensor(string, add_symbols=True) for string in seq]
             else:
-                raise TypeError("unsupported type: {}".format(type(seq.iloc[0])))
+                raise TypeError(f"unsupported type: {type(seq.iloc[0])}")
         return nn.utils.rnn.pad_sequence(batch, True, self.padding).to(device)
 

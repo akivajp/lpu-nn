@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
     Weight initialization functions
 """
 
 # 3rd
-import torch
 from torch import nn
 
 # local
@@ -32,7 +30,7 @@ def init_weights(m, name=None):
     ]
     if hasattr(m, 'init_weights'):
         if not isinstance(m, (Embedding,Linear,SequenceConvolution1d)):
-            logger.debug("initializing {} weights".format(m.__class__.__name__))
+            logger.debug(f"initializing {m.__class__.__name__} weights")
         try:
             m.init_weights(name=name)
         except:
@@ -49,7 +47,7 @@ def init_weights(m, name=None):
     else:
         if hasattr(m, 'weight'):
             if m.weight.dim() > 1:
-                logger.debug("initializing unknown ({}) weight orthogonally".format(m.__class__.__name__))
+                logger.debug(f"initializing unknown ({m.__class__.__name__}) weight orthogonally")
                 nn.init.orthogonal_(m.weight)
                 #nn.init.xavier_uniform_(m.weight)
         pass
@@ -58,12 +56,12 @@ def init_lstm_weights(m):
     for key, param in m.named_parameters():
         if key.find('weight_ih') == 0:
             hsize = param.shape[0] // 4
-            logger.debug("initializing LSTM {} orthogonally with gain 2 (for sigmoid)".format(key))
+            logger.debug(f"initializing LSTM {key} orthogonally with gain 2 (for sigmoid)")
             for i in range(4):
                 nn.init.orthogonal_(param[hsize*i:hsize*(i+1)], gain=2.0)
         elif key.find('weight_hh') == 0:
             hsize = param.shape[0] // 4
-            logger.debug("initializing LSTM {} orthogonally with gain 5/3 (for tanh)".format(key))
+            logger.debug(f"initializing LSTM {key} orthogonally with gain 5/3 (for tanh)")
             for i in range(4):
                 nn.init.orthogonal_(param[hsize*i:hsize*(i+1)], gain=5.0/3)
         else:
@@ -77,7 +75,7 @@ def apply_init_weights(top):
         indent = '  ' * depth
         base = name.split('.')[-1]
         if not name:
-            logger.info("  * {}({})".format(module.__class__.__name__,module.extra_repr()))
+            logger.info(f"  * {module.__class__.__name__}({module.extra_repr()})")
         else:
-            logger.info("  {} * {}: {}({})".format(indent, base, module.__class__.__name__,module.extra_repr()))
+            logger.info(f"  {indent} * {base}: {module.__class__.__name__}({module.extra_repr()})")
         init_weights(module, name)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # 3rd
 import torch
@@ -7,7 +6,6 @@ from torch import nn
 
 # local
 from lpu.common import logging
-from lpu_nn.common.utils import format_state
 from lpu_nn import modeling
 
 logger = logging.getColorLogger(__name__)
@@ -15,7 +13,7 @@ dprint = logger.debug_print
 
 class StatefulLSTM(modeling.Module):
     def __init__(self, in_size, out_size):
-        super(StatefulLSTM,self).__init__()
+        super().__init__()
         self.in_size = in_size
         self.out_size = out_size
         self.mod_lstm = nn.LSTM(in_size, out_size, batch_first=True)
@@ -81,7 +79,7 @@ class MultiLayerLSTM(nn.Module):
         self.dropout_ratio = params['dropout_ratio']
         self.residual      = params['residual_connection']
         self.normalize     = params['normalize']
-        super(MultiLayerLSTM,self).__init__()
+        super().__init__()
         mods_lstm = []
         for i in range(self.num_layers):
             if i == 0:

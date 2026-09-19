@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # system
 import math
@@ -54,7 +53,7 @@ def accuracy(h, t, ignore_index=-1, reduction='mean'):
     elif reduction == 'hmean':
         return correct.sum(1).float() / t_valid.sum(1).float()
     else:
-        raise ValueError("unknown reduction method: {}".format(reduction))
+        raise ValueError(f"unknown reduction method: {reduction}")
 
 def sequence_accuracy(h, t, ignore_index=-1):
     acc = accuracy(h, t, ignore_index, reduction='hmean') # (B)
@@ -82,5 +81,5 @@ def smoothed_cross_entropy(h, t, smooth=0.1, ignore_index=-1, reduction='mean'):
     elif reduction == 'mean':
         return batch_loss.mean().to(dtype)
     else:
-        raise ValueError("unknown reduction method: {}".format(reduction))
+        raise ValueError(f"unknown reduction method: {reduction}")
 
