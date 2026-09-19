@@ -136,3 +136,120 @@ class TestOptimizerAttributes:
             [torch.zeros(2, requires_grad=True)], lr=1e-3, weight_decay=0.02)
         assert not hasattr(optimizer, 'weight_decay_rate')
         assert optimizer.param_groups[0]['weight_decay'] == 0.02
+
+
+class TestOutOfMemoryRecovery:
+    '''The batch-shrinking path that a CUDA out-of-memory error triggers
+
+    CUDA のメモリ不足で働く、バッチ縮小の経路。
+
+    実際に OOM を起こさずに確かめられるよう、`feed_one_batch` に例外を
+    注入する。この経路が働かないと、メモリが足りない設定で学習がそのまま
+    落ちる。
+    '''
+
+    def build_trainer(self, failures, batch_type='samples', batch_size=8):
+        '''A trainer whose feed_one_batch fails the first `failures` times
+
+        最初の `failures` 回だけ `feed_one_batch` が失敗する訓練器。
+        '''
+        import pandas as pd
+
+        calls = []
+
+        class Recorder(training.Trainer):
+            default = training.default
+
+            def __init__(self):
+                self.model = SimpleNamespace(
+                    zero_grad=lambda: None, reset_state=lambda: None,
+                    train=lambda: None, eval=lambda: None,
+                    device=torch.device('cpu'))
+                self.optimizer = SimpleNamespace(zero_grad=lambda: None)
+                self.train_df = pd.DataFrame({'criterion': [0.0] * 8,
+                                              'feed_count': [0] * 8,
+                                              'last_step': [0] * 8,
+                                              'last_epoch': [0] * 8})
+                self.config = SimpleNamespace(data=_config_data(batch_type, batch_size))
+                self.progress = None
+
+            def update_train_step(self, increment=True):
+                pass
+
+            def set_max_steps(self, max_steps=None, min_steps=1):
+                pass
+
+            def show_progress_report(self):
+                pass
+
+            def feed_one_batch(self, batch, fallback=False, df=None):
+                calls.append(len(batch))
+                if len(calls) <= failures:
+                    raise torch.cuda.OutOfMemoryError('CUDA out of memory. Tried ...')
+                # 実装は pd.Series を返し、呼び出し側はそれを足し合わせる
+                return pd.Series({'loss': 1.0})
+
+        return Recorder(), calls
+
+    def test_an_out_of_memory_error_shrinks_the_batch(self):
+        # 縮小が働かなければ、同じ大きさで落ち続ける
+        import pandas as pd
+        trainer, _calls = self.build_trainer(failures=1)
+        batches = [pd.DataFrame({'len': [1] * 4}, index=range(4)) for _ in range(2)]
+        before = trainer.config.data.train.batch_size
+        training.Trainer.feed_batches(trainer, batches, train=True)
+        assert trainer.config.data.train.batch_size < before
+
+    def test_the_error_is_counted(self):
+        import pandas as pd
+        trainer, _calls = self.build_trainer(failures=1)
+        batches = [pd.DataFrame({'len': [1] * 4}, index=range(4)) for _ in range(2)]
+        training.Trainer.feed_batches(trainer, batches, train=True)
+        assert trainer.progress['total_errors'] == 1
+
+    def test_the_batch_size_never_falls_below_the_minimum(self):
+        import pandas as pd
+        trainer, _calls = self.build_trainer(failures=5)
+        batches = [pd.DataFrame({'len': [1] * 4}, index=range(4)) for _ in range(5)]
+        training.Trainer.feed_batches(trainer, batches, train=True)
+        cdata = trainer.config.data
+        assert cdata.train.batch_size >= cdata.train.min_batch_size
+
+    def test_another_runtime_error_is_not_swallowed(self):
+        # メモリ不足以外は縮小せずに送出すること
+        import pandas as pd
+        trainer, _calls = self.build_trainer(failures=0)
+
+        def always_fail(batch, fallback=False, df=None):
+            raise RuntimeError('something else went wrong')
+
+        trainer.feed_one_batch = always_fail
+        batches = [pd.DataFrame({'len': [1] * 4}, index=range(4))]
+        with pytest.raises(RuntimeError, match='something else'):
+            training.Trainer.feed_batches(trainer, batches, train=True)
+
+
+def _config_data(batch_type, batch_size):
+    '''The configuration feed_batches reads
+
+    feed_batches が参照する設定。
+    '''
+    from lpu.common.config import ConfigData
+
+    data = ConfigData()
+    data.train = ConfigData()
+    data.train.batch_size = batch_size
+    data.train.min_batch_size = 1
+    data.train.batch_type = batch_type
+    data.train.optimizer = 'lamb'
+    data.train.schedule_num_steps = False
+    data.train.weight_decay_rate = 0.0
+    data.log = ConfigData()
+    data.log.epoch = 1
+    data.log.elapsed = 0.0
+    data.log.fed_tokens = 0
+    data.log.train_step = 0
+    data.log.interval = 0
+    data.model = ConfigData()
+    data.model.max_length = 16
+    return data

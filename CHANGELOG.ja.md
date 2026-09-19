@@ -30,6 +30,17 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`Trainer.feed_batches` のメモリ不足からの復帰は、例外をメッセージの先頭
+18 文字だけで判定していました。PyTorch は `RuntimeError` の派生である
+`torch.cuda.OutOfMemoryError` を送出するため、まず型で判定するように
+しました。文言が変われば、バッチ縮小が働かなくなり、復帰できていた場面で
+そのまま落ちることになります。
+
+この復帰経路とキーボード中断時の後片付けは、いずれも
+`torch.cuda.reset_max_memory_cached` を呼んでいました。これは警告を出す
+`reset_peak_memory_stats` の別名で、隣の `reset_max_memory_allocated` も
+同じ別名です。1 回の呼び出しにまとめました。
+
 `Trainer.update_parameters` は、署名が `report=None` を許し他方の代入では
 確認しているにもかかわらず、勾配ノルムの代入だけ確認していませんでした。
 

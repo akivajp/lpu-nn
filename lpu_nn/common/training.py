@@ -1047,7 +1047,11 @@ class Trainer:
                     except Exception as e2:
                         logger.exception(e2)
                 if isinstance(e, RuntimeError):
-                    mem_error = False
+                    # torch.cuda.OutOfMemoryError (RuntimeError の派生) で
+                    # 型として判定できる。文字列一致だけだと、メッセージの
+                    # 文言が変わった時点で黙ってバッチ縮小が働かなくなり、
+                    # 学習がそのまま落ちる
+                    mem_error = isinstance(e, torch.cuda.OutOfMemoryError)
                     if str(e)[:18] == "CUDA out of memory":
                         mem_error = True
                     if str(e).find('CUDNN_STATUS_EXECUTION_FAILED') >= 0:
@@ -1060,8 +1064,11 @@ class Trainer:
                         gc.collect()
                         try:
                             torch.cuda.empty_cache()
-                            torch.cuda.reset_max_memory_allocated()
-                            torch.cuda.reset_max_memory_cached()
+                            # reset_max_memory_allocated と
+                            # reset_max_memory_cached はいずれも
+                            # reset_peak_memory_stats を呼ぶ別名で、後者は
+                            # FutureWarning を出す。直接呼べば 1 回で済む
+                            torch.cuda.reset_peak_memory_stats()
                         except Exception as e2:
                             logger.debug(repr(e2))
                         if cdata.train.batch_type == 'samples':
@@ -2228,8 +2235,8 @@ def main(Trainer, modelname):
                     gc.collect()
                     try:
                         torch.cuda.empty_cache()
-                        torch.cuda.reset_max_memory_allocated()
-                        torch.cuda.reset_max_memory_cached()
+                        # reset_max_memory_cached は FutureWarning を出す別名
+                        torch.cuda.reset_peak_memory_stats()
                     except Exception as exc:
                         # 後片付けの失敗で終了処理を止めない。ただし
                         # 握り潰さず記録は残す

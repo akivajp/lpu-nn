@@ -31,6 +31,19 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+The out-of-memory recovery in `Trainer.feed_batches` recognized the
+error only by the first 18 characters of its message. PyTorch raises
+`torch.cuda.OutOfMemoryError`, a `RuntimeError` subclass, so the type is
+checked first now; a change of wording would otherwise have stopped the
+batch from shrinking, and the run would simply have died where it used
+to recover.
+
+That recovery path, and the keyboard-interrupt cleanup, both called
+`torch.cuda.reset_max_memory_cached`, which is an alias for
+`reset_peak_memory_stats` that warns, right next to
+`reset_max_memory_allocated`, which is the same alias again. One call
+replaces the pair.
+
 `Trainer.update_parameters` assigned the gradient norm into the report
 without checking it, although its signature accepts `report=None` and
 guards the other assignment.
