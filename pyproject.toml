@@ -130,6 +130,7 @@ files = [
     "lpu_nn/modeling/attention.py",
     "lpu_nn/modeling/convolution.py",
     "lpu_nn/modeling/embeddings.py",
+    "lpu_nn/modeling/encoder_decoder.py",
     "lpu_nn/modeling/linear.py",
     "lpu_nn/modeling/lstm.py",
     "lpu_nn/modeling/module.py",

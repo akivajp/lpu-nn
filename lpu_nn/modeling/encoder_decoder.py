@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 # system
+from collections.abc import Mapping
+from typing import Any, cast
 import time
 
 # 3rd
@@ -25,7 +27,7 @@ dprint = logger.debug_print
 
 class LSTMEncoder(modeling.Module):
     #def __init__(self, vocab, **params):
-    def __init__(self, idmaps, **params):
+    def __init__(self, idmaps: Mapping[str, Any], **params: Any) -> None:
         params = LSTMEncoder.get_config(**params)
         #dprint(params)
         #self.padding = vocab.pad
@@ -53,7 +55,7 @@ class LSTMEncoder(modeling.Module):
         #self.mod_dropout = nn.Dropout(self.dropout_ratio)
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         #dprint(params)
         params.setdefault('padding', -1)
         params.setdefault('embed_size', 512)
@@ -80,7 +82,8 @@ class LSTMEncoder(modeling.Module):
         return params
 
     #def prepare_features(self, x=None, **features):
-    def prepare_features(self, seq=None, **features):
+    def prepare_features(self, seq: "torch.Tensor | None" = None,
+                         **features: Any) -> dict[str, Any]:
         #if x is not None:
         if seq is not None:
             #if x.dim() == 2:
@@ -93,7 +96,7 @@ class LSTMEncoder(modeling.Module):
         return features
 
     #def forward(self, x_seq, **features):
-    def forward(self, seq, **features):
+    def forward(self, seq: torch.Tensor, **features: Any) -> torch.Tensor:
         #batch_size, len_x = x_seq.shape
         _batch_size, _len_seq = seq.shape
         #mask_x = features.get('mask_x')
@@ -113,26 +116,26 @@ class LSTMEncoder(modeling.Module):
             return torch.cat([h_forward, h_backward], dim=2) # (B, L, 2H)
         else:
             #return h_forward, features
-            return h_forward
+            return cast(torch.Tensor, h_forward)
 
-    def get_state(self):
+    def get_state(self) -> dict[str, Any]:
         self.last_state['forward_rnn_state'] = self.mod_rnn_forward.get_state()
         if self.bidirectional:
             self.last_state['backward_rnn_state'] = self.mod_rnn_backward.get_state()
         return self.last_state
 
-    def reset_state(self):
-        self.last_state = {}
+    def reset_state(self) -> Any:
+        self.last_state: dict[str, Any] = {}
         self.mod_rnn_forward.reset_state()
         if self.bidirectional:
             self.mod_rnn_backward.reset_state()
 
 class LSTMDecoder(modeling.Module):
-    def __init__(self, idmaps, **params):
+    def __init__(self, idmaps: Mapping[str, Any], **params: Any) -> None:
         params = LSTMDecoder.get_config(**params)
-        vocab = idmaps['x']
         self.idmaps = idmaps
-        self.padding = vocab.pad
+        # vocab.pad を読んでいたが直後に params['padding'] で上書きされる
+        # 死んだ代入だった
         self.vocab_size = params['vocab_size']
         self.padding    = params['padding']
         self.embed_size = params['embed_size']
@@ -162,9 +165,12 @@ class LSTMDecoder(modeling.Module):
             pass # using self.embed_tok.W
             self.mod_output.weight = self.mod_embed_tok.weight
         self.mod_dropout = nn.Dropout(self.dropout_ratio)
+        # reset_state() を呼ぶまで last_state が存在せず、構築直後の
+        # forward は AttributeError になっていた
+        self.reset_state()
 
     @staticmethod
-    def get_config(**params):
+    def get_config(**params: Any) -> dict[str, Any]:
         #dprint(params)
         params.setdefault('padding', -1)
         params.setdefault('embed_size', 512)
@@ -173,6 +179,10 @@ class LSTMDecoder(modeling.Module):
         #params.setdefault('attention_type', 'general')
         params.setdefault('attention_type', 'mlp')
         params.setdefault('local_attention', False)
+        # __init__ が参照するが、これまで EncoderDecoder.get_config 側でしか
+        # 設定されず、単独で構築すると KeyError になっていた
+        params.setdefault('memory_size', params['hidden_size'])
+        params.setdefault('share_embedding', True)
         params.setdefault('input_feeding', True)
         if params['attention_type'] == 'none':
             params['memory_size'] = None
@@ -194,7 +204,7 @@ class LSTMDecoder(modeling.Module):
         #dprint(params)
         return params
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         nn.init.orthogonal_(self.mod_embed_tok.weight)
         if hasattr(self, 'mod_combine'):
             nn.init.orthogonal_(self.mod_combine.weight, gain=get_gain('tanh'))
@@ -202,7 +212,9 @@ class LSTMDecoder(modeling.Module):
         nn.init.orthogonal_(self.mod_output.weight)
 
     #def prepare_features(self, y=None, prev_y=None, **features):
-    def prepare_features(self, seq=None, prev_seq=None, **features):
+    def prepare_features(self, seq: "torch.Tensor | None" = None,
+                         prev_seq: "torch.Tensor | None" = None,
+                         **features: Any) -> dict[str, Any]:
         #if y is not None:
         if seq is not None:
             #if y.dim() == 1:
@@ -215,15 +227,19 @@ class LSTMDecoder(modeling.Module):
                 features['id_seq'] = seq # (B, L)
         return features
 
-    def forward(self, y, memory, **features):
+    def forward(self, y: torch.Tensor, memory: torch.Tensor,
+                **features: Any) -> torch.Tensor:
         return self.decode(y, memory, **features)
 
     #def decode_one(self, y, memory, **features):
-    def decode_one(self, seq, memory, **features):
+    def decode_one(self, seq: torch.Tensor, memory: torch.Tensor,
+                   **features: Any) -> torch.Tensor:
         device = self.device
         dtype  = self.dtype
         #features = self.prepare_features(y=y, **features)
-        features = self.prepare_features(seq_enc=seq, **features)
+        # 引数名は seq。seq_enc は **features へ流れ込み、seq は None の
+        # ままだったため、特徴量の準備が行われていなかった
+        features = self.prepare_features(seq=seq, **features)
         #batch_size = y.shape[0]
         batch_size = seq.shape[0]
         #y_emb = self.mod_embed_tok(y) * (self.embed_size ** 0.5)
@@ -256,11 +272,12 @@ class LSTMDecoder(modeling.Module):
             h_reduce = torch.tanh(self.mod_reduce(h_dec)) # (B, H) -> (B, E)
             h_out = self.mod_output(h_reduce) # (B, V)
         #self.input_feed = h_combine
-        return h_out
+        return cast(torch.Tensor, h_out)
 
     #def decode(self, memory, y_seq, **features):
     #def decode(self, y_seq, memory, **features):
-    def decode(self, seq, memory, **features):
+    def decode(self, seq: torch.Tensor, memory: torch.Tensor,
+               **features: Any) -> torch.Tensor:
         #dprint(features.keys())
         #y_list = [y.squeeze(1) for y in y_seq.split(1, dim=1)] # List[B, E]
         token_batch_list = [tokens.squeeze(1) for tokens in seq.split(1, dim=1)] # List[B, E]
@@ -274,23 +291,29 @@ class LSTMDecoder(modeling.Module):
         h_out_seq = torch.stack(h_out_list, dim=2) # (B, V, L)
         return h_out_seq
 
-    def get_state(self):
+    def get_state(self) -> dict[str, Any]:
         self.last_state['rnn_state'] = self.mod_rnn_forward.get_state()
         return self.last_state
 
-    def reset_state(self):
-        self.last_state = {}
+    def reset_state(self) -> Any:
+        self.last_state: dict[str, Any] = {}
         #self.cache = Cache(self.xp)
         #self.input_feed = None
         self.mod_rnn_forward.reset_state()
+        return self
 
-    def set_state(self, state):
+    def set_state(self, state: "dict[str, Any] | None") -> Any:
+        if state is None:
+            return self.reset_state()
         self.last_state = state
-        self.mod_rnn_forward.set_state(state['rnn_state'])
+        rnn_state = state.get('rnn_state')
+        if rnn_state is not None:
+            self.mod_rnn_forward.set_state(rnn_state)
+        return self
 
 class EncoderDecoder(modeling.Module):
     #def __init__(self, vocab, **params):
-    def __init__(self, idmaps, **params):
+    def __init__(self, idmaps: Mapping[str, Any], **params: Any) -> None:
         """
         :param FieldMap idmaps:
         :param dict params:
@@ -325,7 +348,7 @@ class EncoderDecoder(modeling.Module):
                 params['shared_embed_rel_pos'] = self.mod_embed_rel_pos
         if self.encoder_type == 'lstm':
             #self.mod_encode = LSTMEncoder(vocab, **params)
-            self.mod_encode = LSTMEncoder(idmaps, **params)
+            self.mod_encode: Any = LSTMEncoder(idmaps, **params)
         elif self.encoder_type == 'transformer':
             #self.mod_encode = transformer.Encoder(vocab, **params)
             self.mod_encode = transformer.Encoder(idmaps, **params)
@@ -333,7 +356,7 @@ class EncoderDecoder(modeling.Module):
             raise ValueError(f"unsupported encoder type: {self.encoder_type}")
         if self.decoder_type == 'lstm':
             #self.mod_decode = LSTMDecoder(vocab, **params)
-            self.mod_decode = LSTMDecoder(idmaps, **params)
+            self.mod_decode: Any = LSTMDecoder(idmaps, **params)
         elif self.decoder_type == 'transformer':
             #self.mod_decode = transformer.Decoder(vocab, **params)
             self.mod_decode = transformer.Decoder(idmaps, **params)
@@ -341,7 +364,7 @@ class EncoderDecoder(modeling.Module):
             raise ValueError(f"unsupported decoder type: {self.decoder_type}")
 
     @classmethod
-    def fix_component_name(cls, name):
+    def fix_component_name(cls, name: str) -> str:
         if name.lower() in ['lstm', 'rnn']:
             return 'lstm'
         elif name.lower() in ['transformer', 'trans']:
@@ -352,7 +375,7 @@ class EncoderDecoder(modeling.Module):
             raise ValueError(f"Unsupported component name: {name}")
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         #dprint(params)
         params.setdefault('padding', -1)
         params.setdefault('embed_size', 512)
@@ -385,17 +408,18 @@ class EncoderDecoder(modeling.Module):
         return params
 
     #def decode_one(self, memory, y, **features):
-    def decode_one(self, y, memory, **features):
+    def decode_one(self, y: torch.Tensor, memory: torch.Tensor,
+                   **features: Any) -> torch.Tensor:
         #return self.mod_decode.decode_one(memory, y, **features)
-        return self.mod_decode.decode_one(y, memory, **features)
+        return cast(torch.Tensor, self.mod_decode.decode_one(y, memory, **features))
 
-    def prepare_batch(self, seq):
+    def prepare_batch(self, seq: Any) -> torch.Tensor:
         device = self.device
         vocab = self.vocab
         if isinstance(seq, torch.Tensor):
             return seq
         elif isinstance(seq, str):
-            batch = torch.tensor([vocab.encode(seq, add_symbols=True)])
+            batch: Any = torch.tensor([vocab.encode(seq, add_symbols=True)])
         elif isinstance(seq, (pd.Series,list)):
             seq = list(seq)
             if len(seq) == 0:
@@ -404,10 +428,13 @@ class EncoderDecoder(modeling.Module):
                 batch = [torch.tensor(vocab.safe_add_symbols(idvec)) for idvec in seq]
             else:
                 batch = [torch.tensor(vocab.encode(sent, add_symbols=True)) for sent in seq]
-        return nn.utils.rnn.pad_sequence(batch, True, self.padding).to(device)
+        return cast(torch.Tensor,
+                    nn.utils.rnn.pad_sequence(batch, True, self.padding).to(device))
 
     #def prepare_features(self, **features):
-    def prepare_features(self, seq_enc=None, seq_dec=None, **features):
+    def prepare_features(self, seq_enc: "torch.Tensor | None" = None,
+                         seq_dec: "torch.Tensor | None" = None,
+                         **features: Any) -> dict[str, Any]:
         max_steps = getattr(self, 'max_steps', None)
         if max_steps is not None:
             features['max_steps'] = max_steps
@@ -415,7 +442,7 @@ class EncoderDecoder(modeling.Module):
         features = self.mod_decode.prepare_features(seq=seq_dec, **features)
         return features
 
-    def restore_batch(self, batch, to=str, squeeze=True):
+    def restore_batch(self, batch: Any, to: Any = str, squeeze: bool = True) -> Any:
         vocab = self.vocab
         list_ids = [vocab.clean_ids(ids) for ids in batch.tolist()]
         if to in [str, 'str', 'string']:
@@ -433,7 +460,8 @@ class EncoderDecoder(modeling.Module):
         else:
             raise TypeError(f"unknown conversion type: {to}")
 
-    def generate(self, x, max_length=100, timeout=None):
+    def generate(self, x: Any, max_length: int = 100,
+                 timeout: "float | None" = None) -> Any:
         device = self.device
         start = time.time()
         with torch.no_grad():
@@ -474,8 +502,10 @@ class EncoderDecoder(modeling.Module):
                 logger.exception(e)
             return y_id_seq
 
-    def beam_search(self, x,
-                    beam_width=5, incomplete_cost=100, max_length=100, repetition_cost=0, normalize=False, timeout=None):
+    def beam_search(self, x: Any,
+                    beam_width: int = 5, incomplete_cost: int = 100,
+                    max_length: int = 100, repetition_cost: float = 0,
+                    normalize: bool = False, timeout: "float | None" = None) -> Any:
         start = time.time()
         device = self.device
         with torch.no_grad():
@@ -488,8 +518,10 @@ class EncoderDecoder(modeling.Module):
             self.reset_state()
             memory = self.mod_encode(x_id_seq, **features) # (1, Len_x, H)
             batch_y = torch.tensor([self.vocab.bos])[:,None].to(device) # (1, 1)
-            nbest_comp_list = []
+            nbest_comp_list: list[Any] = []
             nbest_incomp_list = [(0, batch_y[0], None)]
+            # タプル展開と再代入の両方で使うため、先に宣言しておく
+            state_list: Any
             for i in range(1, int(max_length)):
                 candidates = []
                 dprint(i)
@@ -502,7 +534,7 @@ class EncoderDecoder(modeling.Module):
                 #batch_x_id_seq = F.repeat(x_id_seq, batch_size, axis=0) # (B, Len_x)
                 batch_x_id_seq = x_id_seq.repeat(batch_size, 1) # (B, Len_x)
                 features = self.prepare_features(seq_enc=batch_x_id_seq)
-                batch_y_id_seq = nn.utils.rnn.pad_sequence(list_y_id_seq, True, self.padding) # (B, Len_y)
+                batch_y_id_seq = nn.utils.rnn.pad_sequence(list(list_y_id_seq), True, self.padding) # (B, Len_y)
                 #dprint(batch_y_id_seq)
                 #dprint(list(self.vocab.convert(y_id_seq.tolist(), 'tokens') for y_id_seq in list_y_id_seq))
                 batch_memory = memory.repeat(batch_size, 1, 1) # (B, LenMem, H)
@@ -578,31 +610,32 @@ class EncoderDecoder(modeling.Module):
             results.append( (id_seq, score) )
         return results
 
-    def forward(self, x_seq, t_seq=None):
+    def forward(self, x_seq: torch.Tensor,
+                t_seq: "torch.Tensor | None" = None) -> torch.Tensor:
         if t_seq is not None:
             x_seq = self.prepare_batch(x_seq)
             features = self.prepare_features(seq_enc=x_seq)
             t_seq = self.prepare_batch(t_seq)
             memory  = self.mod_encode(x_seq, **features)
             logits = self.mod_decode(t_seq, memory, **features) # (B, V, L)
-            return logits
+            return cast(torch.Tensor, logits)
         else:
-            return self.generate(x_seq)
+            return cast(torch.Tensor, self.generate(x_seq))
 
-    def get_state(self):
+    def get_state(self) -> dict[str, Any]:
         if hasattr(self.mod_encode, 'get_state'):
             self.last_state['encoder_state'] = self.mod_encode.get_state()
         if hasattr(self.mod_decode, 'get_state'):
             self.last_state['decoder_state'] = self.mod_decode.get_state()
         return self.last_state
 
-    def reset_state(self):
-        self.last_state = {}
+    def reset_state(self) -> Any:
+        self.last_state: dict[str, Any] = {}
         hasattr(self.mod_encode, 'reset_state') and self.mod_encode.reset_state()
         hasattr(self.mod_decode, 'reset_state') and self.mod_decode.reset_state()
         return self
 
-    def set_state(self, state):
+    def set_state(self, state: "dict[str, Any] | None") -> Any:
         if state is None:
             return self.reset_state()
         self.mod_decode.set_state(state['decoder_state'])

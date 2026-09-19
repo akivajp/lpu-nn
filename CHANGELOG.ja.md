@@ -30,6 +30,24 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`LSTMDecoder` は `last_state` を初期化しておらず、構築直後の
+encoder-decoder に対する forward は、手動で `reset_state()` を呼ばない限り
+`AttributeError` になりました。単独での構築もできませんでした。
+`memory_size` と `share_embedding` が `EncoderDecoder.get_config` 側でしか
+設定されず、`LSTMDecoder.get_config` は自身の `__init__` を `KeyError` の
+まま放置していました。`reset_state` は同種のクラスが `self` を返す場面で
+`None` を返し、`set_state` は `None` も `rnn_state` を欠いた状態も
+受け付けませんでした。
+
+`LSTMDecoder.decode_one` は `self.prepare_features(seq_enc=seq, ...)` と
+呼んでいましたが、引数名は `seq` です。キーワードは `**features` へ流れ込み、
+トークン ID を記録する分岐は一度も実行されませんでした。設定されるはずだった
+`id_seq` は 4 箇所で書かれ 0 箇所で読まれるため依存するものは無く、呼び出しが
+意図どおりの形になっただけです。
+
+`__init__` には、`vocab.pad` を `self.padding` へ読み込んだ直後に
+`params['padding']` で上書きする死んだ代入もありました。
+
 `MultiStepTransformer` は、サブレイヤの前処理・後処理に `'n'` が無い場合に
 入力側・出力側の `LayerNorm` を作りますが、その適用を
 `hasattr(self, 'normalize_input')` / `hasattr(self, 'normalize_output')` で

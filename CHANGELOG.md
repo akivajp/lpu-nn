@@ -31,6 +31,24 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`LSTMDecoder` never initialized `last_state`, so a forward pass on a
+freshly built encoder-decoder raised `AttributeError` unless
+`reset_state()` had been called by hand. It also could not be constructed
+on its own: `memory_size` and `share_embedding` were set only by
+`EncoderDecoder.get_config`, so `LSTMDecoder.get_config` left its
+`__init__` to raise `KeyError`. Its `reset_state` returned `None` where
+the sibling classes return `self`, and `set_state` neither accepted
+`None` nor tolerated a state without an `rnn_state` entry.
+
+`LSTMDecoder.decode_one` called `self.prepare_features(seq_enc=seq, ...)`
+where the parameter is named `seq`, so the keyword landed in `**features`
+and the branch that records the token ids never ran. The feature it would
+have set, `id_seq`, is written in four places and read in none, so
+nothing depended on it; the call says what it means now.
+
+Its `__init__` also read `vocab.pad` into `self.padding` and overwrote it
+with `params['padding']` on the next line.
+
 `MultiStepTransformer` built a `LayerNorm` for its input or its output
 when the sublayer pre- or post-processing carried no `'n'`, then guarded
 the call with `hasattr(self, 'normalize_input')` and
