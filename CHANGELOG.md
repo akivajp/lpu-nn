@@ -31,6 +31,25 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`MultiStepTransformer` built a `LayerNorm` for its input or its output
+when the sublayer pre- or post-processing carried no `'n'`, then guarded
+the call with `hasattr(self, 'normalize_input')` and
+`hasattr(self, 'normalize_output')` — names that are never assigned
+anywhere, so the module was created and never applied.
+`UniversalTransformer` asks for the module itself, which is what
+`__init__` decides on. Neither setting is reachable from the command line
+today, so no model trained here was affected; it matters the moment
+anyone switches to the alternative arrangement the comments in
+`ModuleConnection.get_parameters` recommend.
+
+`EmbedPosition.get_config` wrote `params.setdefault('embed_size', ...)`
+twice where the second line should have derived `hidden_size`, as every
+sibling `get_config` does. Calling it without an explicit `hidden_size`
+raised `KeyError`.
+
+`MultiStepTransformer.set_state` returned `None` while `reset_state`
+returned `self`.
+
 The SentencePiece pre-processor never flushed the scratch file it hands
 to the trainer. SentencePiece is given `temp.name` and reads it from
 disk, so whatever remained in the buffer was simply not there: for a

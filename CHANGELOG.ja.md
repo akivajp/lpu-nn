@@ -30,6 +30,24 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+`MultiStepTransformer` は、サブレイヤの前処理・後処理に `'n'` が無い場合に
+入力側・出力側の `LayerNorm` を作りますが、その適用を
+`hasattr(self, 'normalize_input')` / `hasattr(self, 'normalize_output')` で
+判定していました。これらの名前はどこにも代入されないため、モジュールは
+生成されるだけで一度も適用されていませんでした。`UniversalTransformer` は
+`__init__` の条件と同じ、モジュール自体の有無を見ています。現状これらの
+設定はコマンドラインから変更できないため、ここで学習されたモデルへの影響は
+ありませんが、`ModuleConnection.get_parameters` のコメントが推奨する別の
+配置に切り替えた瞬間に問題になります。
+
+`EmbedPosition.get_config` は `params.setdefault('embed_size', ...)` を
+2 度書いており、2 行目は他の全ての `get_config` と同じく `hidden_size` を
+導出すべきものでした。`hidden_size` を明示せずに呼ぶと `KeyError` に
+なっていました。
+
+`MultiStepTransformer.set_state` は `None` を返していました
+(`reset_state` は `self` を返します)。
+
 SentencePiece の前処理が、学習へ渡す作業用ファイルを flush していません
 でした。SentencePiece には `temp.name` を渡してディスクから読ませるため、
 バッファに残った分はそこに存在しません。小さなコーパスではファイルが

@@ -2,6 +2,8 @@
 
 # system
 import math
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
 
 # 3rd
 import torch
@@ -24,33 +26,36 @@ logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
 class EmbedPosition(modeling.Module):
-    def __init__(self, **params):
+    def __init__(self, **params: Any) -> None:
         super().__init__()
         params = EmbedPosition.get_config(**params)
-        self.max_length = params.get('max_length')
-        self.embed_size = params.get('embed_size')
-        self.hidden_size = params.get('hidden_size')
+        self.max_length: int = params['max_length']
+        self.embed_size: int = params['embed_size']
+        self.hidden_size: int = params['hidden_size']
         #self.embed_pos = nn.Embedding(self.max_length, self.embed_size)
         self.embed_pos = embeddings.Embedding(self.max_length, self.hidden_size)
         #self.scale_emb = self.hidden_size ** 0.5
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         #dprint(params)
         params.setdefault('max_length', 256)
         params.setdefault('embed_size', 512)
-        params.setdefault('embed_size', params['hidden_size'])
+        # 2 行目も 'embed_size' と書かれており、hidden_size が導出されな
+        # かった。hidden_size を渡さずに呼ぶと KeyError になっていた
+        # (他の get_config はいずれも hidden_size を導出している)
+        params.setdefault('hidden_size', params['embed_size'])
         #dprint(params)
         return params
 
     #def forward(self, batch_size, length, start=0):
-    def forward(self, length, start=0):
+    def forward(self, length: int, start: int = 0) -> torch.Tensor:
         positions = torch.arange(start, start+length).to(self.device) # (L,)
         position_embed_seq = self.embed_pos(positions) # (L, H)
         #position_embed_seq = position_embed_seq * self.scale_emb
-        return position_embed_seq
+        return cast(torch.Tensor, position_embed_seq)
 
-def resolve_num_heads(params):
+def resolve_num_heads(params: dict[str, Any]) -> dict[str, Any]:
     """Fill in whichever of num_heads / key_size was not given
 
     num_heads と key_size のうち与えられていない方を補う。
@@ -82,7 +87,7 @@ def resolve_num_heads(params):
     return params
 
 class EmbedRelativePosition(modeling.Module):
-    def __init__(self, **params):
+    def __init__(self, **params: Any) -> None:
         super().__init__()
         params = EmbedRelativePosition.get_config(**params)
         self.embed_size = params['embed_size']
@@ -104,19 +109,19 @@ class EmbedRelativePosition(modeling.Module):
         #self.scale_emb = self.hidden_size ** 0.5
 
     @staticmethod
-    def get_config(**params):
+    def get_config(**params: Any) -> dict[str, Any]:
         params.setdefault('clip_distance', 8)
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
         return resolve_num_heads(params)
 
-    def forward(self, positions):
+    def forward(self, positions: torch.Tensor) -> torch.Tensor:
         emb_positions = self.mod_embed_relative_position(positions)
         #return emb_positions * self.scale_emb
-        return emb_positions
+        return cast(torch.Tensor, emb_positions)
 
 class FeedForward(modeling.Module):
-    def __init__(self, **params):
+    def __init__(self, **params: Any) -> None:
         super().__init__()
         # parameters
         params = self.get_config(**params)
@@ -139,7 +144,7 @@ class FeedForward(modeling.Module):
         )
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
         #params.setdefault('hidden_size', params['embed_size'] * 4)
@@ -149,18 +154,20 @@ class FeedForward(modeling.Module):
         params.setdefault('activation', 'swish')
         return params
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         gain = get_gain(self.activation)
-        nn.init.orthogonal_(self.mod_seq[0].weight, gain=gain)
-        self.mod_seq[0].bias.data.zero_()
-        nn.init.orthogonal_(self.mod_seq[3].weight)
-        self.mod_seq[3].bias.data.zero_()
+        first = cast(nn.Linear, self.mod_seq[0])
+        nn.init.orthogonal_(first.weight, gain=gain)
+        first.bias.data.zero_()
+        last = cast(nn.Linear, self.mod_seq[3])
+        nn.init.orthogonal_(last.weight)
+        last.bias.data.zero_()
 
-    def forward(self, seq):
-        return self.mod_seq(seq)
+    def forward(self, seq: torch.Tensor) -> torch.Tensor:
+        return cast(torch.Tensor, self.mod_seq(seq))
 
 class MultiHeadAttention(modeling.Module):
-    def __init__(self, **params):
+    def __init__(self, **params: Any) -> None:
         super().__init__()
         # parameters
         params = MultiHeadAttention.get_config(**params)
@@ -189,20 +196,21 @@ class MultiHeadAttention(modeling.Module):
         self.reset_state()
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         params.setdefault('dropout_ratio', 0.1)
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
         return resolve_num_heads(params)
 
-    def init_weights(self):
-        nn.init.orthogonal_(self.mod_query.weight)
-        nn.init.orthogonal_(self.mod_key.weight)
-        nn.init.orthogonal_(self.mod_value.weight)
-        nn.init.orthogonal_(self.mod_output.weight)
+    def init_weights(self) -> None:
+        for module in (self.mod_query, self.mod_key, self.mod_value, self.mod_output):
+            nn.init.orthogonal_(cast(nn.Linear, module).weight)
 
-    def embed_relative_position(self, len_query, len_key_val, offset=0):
+    def embed_relative_position(self, len_query: int, len_key_val: int,
+                                offset: int = 0) -> torch.Tensor:
         device = self.device
+        # 相対位置の埋め込みを持たない場合は呼ばれない (forward 側で確認済み)
+        assert self.mod_embed_rel_pos is not None
         K = self.mod_embed_rel_pos.clip_distance
         arange_key   = torch.arange(len_key_val).to(device) # (LenK)
         arange_query = torch.arange(len_query).to(device)   # (LenQ)
@@ -210,9 +218,12 @@ class MultiHeadAttention(modeling.Module):
         #dprint(relative_pos)
         clipped_relative_pos = torch.clamp(relative_pos, -K, K) + K
         emb_relative_pos = self.mod_embed_rel_pos(clipped_relative_pos) # (LenQ, LenK, E/H)
-        return emb_relative_pos
+        return cast(torch.Tensor, emb_relative_pos)
 
-    def add_relative_key_position_embedding(self, prod, query_slice, is_self_attention, offset):
+    def add_relative_key_position_embedding(self, prod: torch.Tensor,
+                                            query_slice: torch.Tensor,
+                                            is_self_attention: bool,
+                                            offset: int) -> torch.Tensor:
         #dprint(is_self_attention)
         emb_relative_pos = self.embed_relative_position(prod.shape[1], prod.shape[2], offset) # (LenQ, LenK, E/H)
         # (LenQ, LenK, E/H) -> (LenQ, E/H, LenK)
@@ -229,7 +240,10 @@ class MultiHeadAttention(modeling.Module):
         prod = prod + prod_relative_key
         return prod
 
-    def add_relative_value_position_embedding(self, attention, weight, is_self_attention, offset):
+    def add_relative_value_position_embedding(self, attention: torch.Tensor,
+                                              weight: torch.Tensor,
+                                              is_self_attention: bool,
+                                              offset: int) -> torch.Tensor:
         #dprint(is_self_attention)
         emb_relative_pos = self.embed_relative_position(weight.shape[1], weight.shape[2], offset) # (LenQ, LenV, E/H)
         # (B*H, LenQ, LenK) -> (LenQ, B*H, LenK)
@@ -241,7 +255,9 @@ class MultiHeadAttention(modeling.Module):
         attention = attention + relative_attention
         return attention
 
-    def forward(self, query_seq, key_seq, value_seq, mask, offset=0):
+    def forward(self, query_seq: torch.Tensor, key_seq: torch.Tensor,
+                value_seq: torch.Tensor, mask: "torch.Tensor | None",
+                offset: int = 0) -> torch.Tensor:
         batch_size, batch_src_len, _hidden_size = value_seq.shape
         _, batch_trg_len, _ = query_seq.shape
         self_attention = (query_seq is key_seq)
@@ -284,22 +300,22 @@ class MultiHeadAttention(modeling.Module):
         #out = feed_seq(self.mod_output, attention)
         out = self.mod_output(attention)
         #out = purge_variables(out, mask=mask[:,:,0])
-        return out
+        return cast(torch.Tensor, out)
 
-    def get_state(self):
+    def get_state(self) -> dict[str, Any]:
         return self.last_state
 
-    def reset_state(self):
+    def reset_state(self) -> None:
         #self.last_weight = None
-        self.last_state = {}
+        self.last_state: dict[str, Any] = {}
 
 class PositionalEncoder(modeling.Module):
-    def __init__(self):
-        self.cache = {}
+    def __init__(self) -> None:
+        self.cache: dict[Any, torch.Tensor] = {}
         super().__init__()
 
     #def __call__(self, shape, step=0, remember=True):
-    def forward(self, shape, step=0, remember=True):
+    def forward(self, shape: Any, step: int = 0, remember: bool = True) -> torch.Tensor:
         #batch_size, seq_len, embed_size = shape
         _batch_size, seq_len, hidden_size = shape
         #start = 0
@@ -339,7 +355,7 @@ class PositionalEncoder(modeling.Module):
         return encoding[None,0:seq_len,0:hidden_size].to(self.device, self.dtype)
 
 class ModuleConnection(modeling.Module):
-    def __init__(self, layer_size, **params):
+    def __init__(self, layer_size: int, **params: Any) -> None:
         params = self.get_parameters(**params)
         self.dropout_ratio = params['dropout_ratio']
         super().__init__()
@@ -349,7 +365,7 @@ class ModuleConnection(modeling.Module):
         self.mod_norm = nn.LayerNorm(layer_size)
 
     @classmethod
-    def get_parameters(cls, **params):
+    def get_parameters(cls, **params: Any) -> dict[str, Any]:
         params.setdefault('dropout_ratio', 0.1)
         if params.get('num_layers'):
             num_layers = params['num_layers']
@@ -376,7 +392,7 @@ class ModuleConnection(modeling.Module):
         #params.setdefault('sublayer_postprocess', 'da')
         return params
 
-    def forward(self, seq, sublayer):
+    def forward(self, seq: torch.Tensor, sublayer: Any) -> torch.Tensor:
         input_seq = seq
         #dprint("--")
         #dprint(input_seq[0,:,0].data.tolist(),)
@@ -399,10 +415,10 @@ class ModuleConnection(modeling.Module):
                 #sub = feed_seq(self.normalize, sub)
                 sub = self.mod_norm(sub)
         #dprint(sub[0,:,0].data.tolist(),)
-        return sub
+        return cast(torch.Tensor, sub)
 
 class Transformer(modeling.Module):
-    def __init__(self, conditioned=False, **params):
+    def __init__(self, conditioned: bool = False, **params: Any) -> None:
         super().__init__()
         # parameters
         params = self.get_config(**params)
@@ -424,7 +440,7 @@ class Transformer(modeling.Module):
         self.reset_state()
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         #params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', 512)
         params.setdefault('dropout_ratio', 0.1)
@@ -435,15 +451,18 @@ class Transformer(modeling.Module):
         params = ModuleConnection.get_parameters(**params)
         return params
 
-    def prepare_features(self, seq=None, **features):
+    def prepare_features(self, seq: "torch.Tensor | None" = None,
+                         **features: Any) -> dict[str, Any]:
         #dprint(y)
-        features.get('prev_seq')
         if seq is not None:
             if seq.dim() == 2:
                 features['id_seq'] = seq # (B, L)
         return features
 
-    def forward(self, seq_input, memory=None, mask_self=None, mask_combine=None, step=None, **features):
+    def forward(self, seq_input: torch.Tensor, memory: "torch.Tensor | None" = None,
+                mask_self: "torch.Tensor | None" = None,
+                mask_combine: "torch.Tensor | None" = None,
+                step: "int | None" = None, **features: Any) -> torch.Tensor:
         seq = seq_input
         #features = self.prepare_features(seq=seq_input, step=step, **features)
         features = self.prepare_features(seq=seq_input, **features)
@@ -500,12 +519,12 @@ class Transformer(modeling.Module):
         #    self.cache_features(step=step, **features)
         #if self.combine:
         #    dprint(self.last_state['output'][0,:,0:5],)
-        return seq
+        return cast(torch.Tensor, seq)
 
-    def extra_repr(self):
+    def extra_repr(self) -> str:
         return f"conditioned = {self.conditioned}"
 
-    def get_state(self):
+    def get_state(self) -> dict[str, Any]:
         #status = {}
         #status['last_input']  = self.last_input
         #status['last_output'] = self.last_output
@@ -515,14 +534,14 @@ class Transformer(modeling.Module):
             self.last_state['memory_attention_state'] = self.mod_memory_attention.get_state()
         return self.last_state
 
-    def reset_state(self):
-        self.last_state = {}
+    def reset_state(self) -> "Transformer":
+        self.last_state: dict[str, Any] = {}
         self.mod_self_attention.reset_state()
         if self.conditioned:
             self.mod_memory_attention.reset_state()
         return self
 
-    def set_state(self, state):
+    def set_state(self, state: "dict[str, Any] | None") -> "Transformer":
         if state is None:
             return self.reset_state()
         self.last_state = state
@@ -531,7 +550,7 @@ class Transformer(modeling.Module):
 class MultiStepTransformer(modeling.Module):
     #def __init__(self, **hparams):
     #def __init__(self, combine=False, **hparams):
-    def __init__(self, conditioned=False, **hparams):
+    def __init__(self, conditioned: bool = False, **hparams: Any) -> None:
         super().__init__()
         # parameters
         hparams = self.get_config(**hparams)
@@ -570,7 +589,7 @@ class MultiStepTransformer(modeling.Module):
         #self.mod_dropout = nn.Dropout(self.dropout_ratio)
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         params.setdefault('num_layers', 1)
         params.setdefault('embed_positions', False)
         params.setdefault('embed_size', 512)
@@ -579,7 +598,7 @@ class MultiStepTransformer(modeling.Module):
         params = Transformer.get_config(**params)
         return params
 
-    def add_positional_encoding(self, seq, **features):
+    def add_positional_encoding(self, seq: torch.Tensor, **features: Any) -> torch.Tensor:
         #batch_size, len_seq, embed_size = seq.shape
         _batch_size, len_seq, hidden_size = seq.shape
         if self.embed_positions:
@@ -606,7 +625,17 @@ class MultiStepTransformer(modeling.Module):
                 pos_enc = self.mod_encode_pos(seq.shape)
                 #pos_enc = self.mod_encode_pos(seq.shape).to(device)
             seq = seq + pos_enc
-        if hasattr(self, 'normalize_input'):
+        # The guard used to ask for `normalize_input`, a name that is never
+        # assigned anywhere, so the LayerNorm that __init__ builds when the
+        # sublayer pre-processing carries no 'n' was created and never
+        # applied. UniversalTransformer asks for the module itself, which
+        # is what __init__ decides on.
+        # (この判定は `normalize_input` という、どこにも代入されない名前を
+        #  見ていた。そのため、前処理に 'n' が無い場合に __init__ が作る
+        #  LayerNorm は、生成されるだけで一度も適用されていなかった。
+        #  UniversalTransformer は __init__ の条件と同じ、モジュール自体の
+        #  有無を見ている)
+        if hasattr(self, 'mod_norm_input'):
             seq = self.mod_norm_input(seq)
         #seq = F.dropout(seq, ratio=self.dropout_ratio)
         #seq = self.mod_dropout(seq)
@@ -614,8 +643,10 @@ class MultiStepTransformer(modeling.Module):
         #dprint(seq[0,:,0])
         return seq
 
-    def forward(self, seq_input, memory=None, mask_self=None, mask_combine=None, **features):
-        #batch_size, len_seq, embed_size = seq_input.shape
+    def forward(self, seq_input: torch.Tensor, memory: "torch.Tensor | None" = None,
+                mask_self: "torch.Tensor | None" = None,
+                mask_combine: "torch.Tensor | None" = None,
+                **features: Any) -> torch.Tensor:
         seq = seq_input
         if features.get('max_steps'):
             max_steps = min(features['max_steps'], self.num_layers)
@@ -629,7 +660,8 @@ class MultiStepTransformer(modeling.Module):
             #seq = transform(seq, memory=memory, mask_self=mask_self, mask_combine=mask_combine, step=i+1, **features)
             seq = mod_trans(seq, memory=memory, mask_self=mask_self, mask_combine=mask_combine, step=i+1, **features)
             #output_list.append(seq)
-        if hasattr(self, 'normalize_output'):
+        # 上と同じ理由で、出力側の LayerNorm も適用されていなかった
+        if hasattr(self, 'mod_norm_output'):
             #logger.debug("--normalize output--")
             #dprint(seq[0,:5,0],)
             seq = self.mod_norm_output(seq)
@@ -638,31 +670,32 @@ class MultiStepTransformer(modeling.Module):
         return seq
         #return seq, features
 
-    def get_state(self):
-        list_state = []
+    def get_state(self) -> list[Any]:
+        list_state: list[Any] = []
         for i in range(self.num_layers):
-            list_state.append(self.mods_transform[i].get_state())
+            list_state.append(cast(Transformer, self.mods_transform[i]).get_state())
         return list_state
 
-    def reset_state(self):
+    def reset_state(self) -> "MultiStepTransformer":
         #self.status = {}
         #self.last_state = {}
         for i in range(self.num_layers):
             #getattr(self, 'transform'+str(i+1)).reset_state()
-            self.mods_transform[i].reset_state()
+            cast(Transformer, self.mods_transform[i]).reset_state()
         return self
 
-    def set_state(self, state):
+    def set_state(self, state: "Sequence[Any] | None") -> "MultiStepTransformer":
         if state is None:
             return self.reset_state()
         for i, _layer_state in enumerate(state):
             #self.mod_trans[i].set_state(state)
             #self.mods_trans[i].set_state(state)
-            self.mods_transform[i].set_state(state[i])
+            cast(Transformer, self.mods_transform[i]).set_state(state[i])
+        return self
 
 class Encoder(modeling.Module):
     #def __init__(self, vocab, **params):
-    def __init__(self, idmaps, **params):
+    def __init__(self, idmaps: Mapping[str, Any], **params: Any) -> None:
         params = Encoder.get_config(**params)
         vocab = idmaps['x']
         self.idmaps = idmaps
@@ -678,7 +711,7 @@ class Encoder(modeling.Module):
         params['conditioned'] = False
         if self.universal:
             from lpu_nn.modeling.universal_transformer import UniversalTransformer
-            self.mod_transform = UniversalTransformer(**params)
+            self.mod_transform: Any = UniversalTransformer(**params)
         else:
             self.mod_transform = MultiStepTransformer(**params)
         if mod_embed_tok is None:
@@ -691,7 +724,7 @@ class Encoder(modeling.Module):
         self.reset_state()
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
         params.setdefault('dropout_ratio', 0.1)
@@ -709,7 +742,8 @@ class Encoder(modeling.Module):
         return params
 
     #def prepare_features(self, x=None, **features):
-    def prepare_features(self, seq=None, **features):
+    def prepare_features(self, seq: "torch.Tensor | None" = None,
+                         **features: Any) -> dict[str, Any]:
         #if x is not None:
         if seq is not None:
             #if x.dim() == 2:
@@ -724,7 +758,7 @@ class Encoder(modeling.Module):
         return features
 
     #def forward(self, x_seq, **features):
-    def forward(self, seq, **features):
+    def forward(self, seq: torch.Tensor, **features: Any) -> torch.Tensor:
         #features = self.prepare_features(x=x_seq, **features)
         features = self.prepare_features(seq=seq, **features)
         #batch_size, len_x = x_seq.shape
@@ -734,18 +768,18 @@ class Encoder(modeling.Module):
         seq_emb = self.mod_embed_tok(seq)
         #h = self.mod_transform(seq_input=x_seq_emb, **features)
         h = self.mod_transform(seq_input=seq_emb, **features)
-        return h
+        return cast(torch.Tensor, h)
 
-    def get_state(self):
+    def get_state(self) -> dict[str, Any]:
         self.last_state['transformer_state'] = self.mod_transform.get_state()
         return self.last_state
 
-    def reset_state(self):
-        self.last_state = {}
+    def reset_state(self) -> None:
+        self.last_state: dict[str, Any] = {}
         self.mod_transform.reset_state()
 
 class Decoder(modeling.Module):
-    def __init__(self, idmaps, **hparams):
+    def __init__(self, idmaps: Mapping[str, Any], **hparams: Any) -> None:
         hparams = Decoder.get_config(**hparams)
         vocab = idmaps['x']
         self.idmaps = idmaps
@@ -762,7 +796,7 @@ class Decoder(modeling.Module):
         hparams['conditioned'] = True
         if self.universal:
             from lpu_nn.modeling.universal_transformer import UniversalTransformer
-            self.mod_transform = UniversalTransformer(**hparams)
+            self.mod_transform: Any = UniversalTransformer(**hparams)
         else:
             self.mod_transform = MultiStepTransformer(**hparams)
         if mod_embed_tok is None:
@@ -783,7 +817,7 @@ class Decoder(modeling.Module):
             self.mod_generate = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
 
     @classmethod
-    def get_config(cls, **params):
+    def get_config(cls, **params: Any) -> dict[str, Any]:
         params.setdefault('embed_size', 512)
         params.setdefault('hidden_size', params['embed_size'])
         if params['embed_size'] > params['hidden_size']:
@@ -803,11 +837,12 @@ class Decoder(modeling.Module):
             params = MultiStepTransformer.get_config(**params)
         return params
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         if self.mod_generate.weight is not self.mod_embed_tok.weight:
             nn.init.orthogonal_(self.mod_generate.weight)
 
-    def prepare_features(self, seq=None, **features):
+    def prepare_features(self, seq: "torch.Tensor | None" = None,
+                         **features: Any) -> dict[str, Any]:
         mem = features.get('mem_id_seq')
         prev_seq = features.get('prev_seq')
         if seq is not None:
@@ -822,11 +857,12 @@ class Decoder(modeling.Module):
                     mask_self  = make_attention_mask(seq, all_seq, self.padding)
                     features['mask_self'] = mask_self
                     features['all_seq'] = all_seq
-        if all(val is not None for val in [seq, mem]):
+        if seq is not None and mem is not None:
             features['mask_combine'] = make_attention_mask(seq, mem, self.padding)
         return features
 
-    def forward(self, seq, memory, **features):
+    def forward(self, seq: torch.Tensor, memory: torch.Tensor,
+                **features: Any) -> torch.Tensor:
         #features = self.prepare_features(y=y_seq, **features)
         if hasattr(self, 'mod_memory2hidden'):
             memory = self.mod_memory2hidden(memory)
@@ -840,25 +876,26 @@ class Decoder(modeling.Module):
             h_dec = self.mod_hidden2embed(h_dec) # (B, L, H) -> (B, L, E)
         logits = self.mod_generate(h_dec) # (B, L, V)
         logits = logits.transpose(1, 2) # (B, V, L) for loss calculation
-        return logits
+        return cast(torch.Tensor, logits)
 
     #def decode_one(self, y, memory, **features):
-    def decode_one(self, seq_inc, memory, **features):
+    def decode_one(self, seq_inc: torch.Tensor, memory: torch.Tensor,
+                   **features: Any) -> torch.Tensor:
         if seq_inc.dim() == 1:
             # assuming (B,)
             seq_inc = seq_inc[:,None] # (B, 1)
         logits = self(seq_inc, memory, **features) # (B, V, L)
-        return logits[:,:,-1] # (B, V)
+        return cast(torch.Tensor, logits[:,:,-1]) # (B, V)
 
-    def get_state(self):
+    def get_state(self) -> dict[str, Any]:
         self.last_state['transformer_state'] = self.mod_transform.get_state()
         return self.last_state
 
-    def reset_state(self):
-        self.last_state = {}
+    def reset_state(self) -> None:
+        self.last_state: dict[str, Any] = {}
         self.mod_transform.reset_state()
 
-    def set_state(self, state):
+    def set_state(self, state: "dict[str, Any] | None") -> None:
         if state is None:
             return self.reset_state()
         self.mod_transform.set_state(state['transformer_state'])

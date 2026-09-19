@@ -133,6 +133,7 @@ files = [
     "lpu_nn/modeling/linear.py",
     "lpu_nn/modeling/lstm.py",
     "lpu_nn/modeling/module.py",
+    "lpu_nn/modeling/transformer.py",
     "lpu_nn/modeling/universal_transformer.py",
     "lpu_nn/optimizers/adabound.py",
     "lpu_nn/optimizers/lamb.py",
