@@ -21,8 +21,17 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: python -m pip install ruff mypy
+      - run: python -m pip install ruff
       - run: ruff check .
+      # mypy needs the dependencies installed to resolve torch and lpu; it
+      # reported them as missing stubs once the annotated modules started
+      # importing them.
+      # (mypy が torch と lpu を解決するには依存の導入が必要。注釈済み
+      #  モジュールがそれらを import した途端、stub 欠落として報告された)
+      - name: Install with the CPU-only PyTorch build
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install . mypy
       # mypy checks only the modules listed in [tool.mypy]; the ported code
       # is not annotated yet, so the list grows as annotations land.
       # (mypy は [tool.mypy] の files に列挙したモジュールのみ検査する。
