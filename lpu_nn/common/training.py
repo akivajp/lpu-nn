@@ -19,6 +19,7 @@ from collections import defaultdict
 from collections import OrderedDict
 from lpu_nn.common.args import strtobool
 from gettext import gettext as _
+from typing import Any
 
 # 3rd party
 import numpy as np
@@ -168,7 +169,17 @@ default.log.elapsed_days = 0
 
 logfile_handler = None
 
-target_loggers = ['__main__', 'common', 'modeling', 'optimizers']
+# Logger names are dotted, so a name only reaches the loggers beneath it.
+# These were the top-level module names before the port: the modules are
+# `lpu_nn.common.training` and the like now, and `common` is not an ancestor
+# of `lpu_nn.common`, so neither the --logging file handler nor --debug
+# reached any of them. The log file held only the __main__ lines.
+# (ロガー名はドット区切りで、その名前の配下にしか効かない。これらは移植前の
+#  トップレベル名であり、現在のモジュールは `lpu_nn.common.training` 等で、
+#  `common` は `lpu_nn.common` の祖先ではない。そのため --logging の
+#  ファイルハンドラも --debug もこれらに届いておらず、ログファイルには
+#  __main__ の行しか残っていなかった)
+target_loggers = ['__main__', 'lpu_nn', 'lpu']
 
 LIST_K_FOR_RECALL = [1, 5, 10, 20, 50, 100]
 
@@ -317,16 +328,18 @@ def reduce_batch_size(batch, batch_size, batch_type):
         return batch
 
 class Trainer:
-    default = default
-    specific = None
-    Model = None
+    # 派生クラスが具体的な設定とモデルクラスで上書きする
+    default: Any = default
+    specific: Any = None
+    Model: Any = None
     #def __init__(self):
     def __init__(self, args=None):
         self.args = args
         self.config = Config(self.default)
-        self.idmaps = None
-        self.model = None
-        self.optimizer = None
+        # 構築時には未設定で、後から setup で入る
+        self.idmaps: Any = None
+        self.model: Any = None
+        self.optimizer: Any = None
         self.sep = '\t'
         self.update_main_fields()
 

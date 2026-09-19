@@ -2,6 +2,9 @@
 
 # system
 import os
+from collections.abc import Mapping
+from typing import Any, cast
+
 from lpu_nn.common.args import strtobool
 
 # 3rd party
@@ -108,7 +111,8 @@ class Seq2SeqTrainer(training.Trainer):
     #def __init__(self, args):
     #    super(Seq2SeqTrainer, self).__init__(args)
 
-    def calc_loss(self, report, logits, t, state):
+    def calc_loss(self, report: dict[str, Any], logits: torch.Tensor,
+                  t: torch.Tensor, state: Mapping[str, Any]) -> torch.Tensor:
         cdata = self.config.data
         padding = self.model.padding
         expected = t[:,1:None]
@@ -123,9 +127,10 @@ class Seq2SeqTrainer(training.Trainer):
             loss = loss_xent + ponder_cost * time_penalty
             report['loss_xent'] = float(loss_xent.detach())
         report['loss'] = float(loss.detach())
-        return loss
+        return cast(torch.Tensor, loss)
 
-    def calc_perplexity(self, report, logits, t):
+    def calc_perplexity(self, report: dict[str, Any], logits: torch.Tensor,
+                        t: torch.Tensor) -> list[float]:
         dtype = logits.dtype
         expected = t[:,1:None]
         padding = self.model.padding
@@ -139,7 +144,8 @@ class Seq2SeqTrainer(training.Trainer):
         list_ppl = batch_ppl_safe.tolist()
         return list_ppl
 
-    def calc_ponder_cost(self, report, x, t, state):
+    def calc_ponder_cost(self, report: dict[str, Any], x: torch.Tensor,
+                         t: torch.Tensor, state: dict[str, Any]) -> Any:
         dtype = self.model.dtype
         mask_x = (x != self.model.padding)
         mask_t = (t != self.model.padding)
@@ -169,7 +175,8 @@ class Seq2SeqTrainer(training.Trainer):
         state['ponder_cost'] = ponder_cost
         return ponder_cost
 
-    def feed_one_batch(self, batch, fallback=False, df=None):
+    def feed_one_batch(self, batch: Any, fallback: bool = False,
+                       df: Any = None) -> Any:
         padding = self.model.padding
         cdata = self.config.data
 
@@ -248,12 +255,13 @@ class Seq2SeqTrainer(training.Trainer):
                             dprint(self.model.max_steps)
         return report
 
-    def load_eval_data(self, path):
+    def load_eval_data(self, path: str) -> Any:
         df = super().load_eval_data(path)
         df['ref'] = df.t
         return df
 
-    def evaluate(self, tag, df, args, feed_batches=None, report=None):
+    def evaluate(self, tag: str, df: Any, args: Any,
+                 feed_batches: Any = None, report: Any = None) -> Any:
         cdata = self.config.data
         if tag == 'test':
             if feed_batches is None:
@@ -306,7 +314,7 @@ class Seq2SeqTrainer(training.Trainer):
             logger.exception(e)
             return eval_report
 
-    def test_sample(self, sample, msg):
+    def test_sample(self, sample: Any, msg: str) -> None:
         cdata = self.config.data
         logger.info(msg)
         #logger.info('  index: {}'.format(sample.index))
@@ -323,7 +331,7 @@ class Seq2SeqTrainer(training.Trainer):
         logger.info(f"  pred: {self.model.restore_batch(pred, str)}")
         logger.info(f"  last perplexity: {sample.criterion}")
 
-    def test_model(self):
+    def test_model(self) -> None:
         if self.dev_df is not None:
             df = self.dev_df
         else:
@@ -344,7 +352,7 @@ class Seq2SeqTrainer(training.Trainer):
         self.test_sample(hard_one, "testing difficult one:")
 
     @classmethod
-    def create_parser(cls, model_name, default=None):
+    def create_parser(cls, model_name: str, default: Any = None) -> Any:
         if default is None:
             default = cls.default
         parser = training.Trainer.create_parser(model_name, default)
@@ -364,7 +372,7 @@ class Seq2SeqTrainer(training.Trainer):
         group.add_argument('--eval-timeout', '--evaluation-timeoout', '--test-timeout', type=float, default=None, help=f'Timeout duration for each evaluation batch in seconds (default: {default.log.eval_timeout})')
         return parser
 
-def main():
+def main() -> None:
     training.main(Seq2SeqTrainer, 'Sequence-to-Sequence Model')
 
 if __name__ == '__main__':

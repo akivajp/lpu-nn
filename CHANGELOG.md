@@ -31,6 +31,16 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+The logger names the trainer configures, `target_loggers`, were the
+top-level module names from before the port: `common`, `modeling`,
+`optimizers`. Logger names are dotted, so a name only reaches the loggers
+beneath it, and `common` is not an ancestor of `lpu_nn.common.training`.
+Neither the `--logging` file handler nor `--debug` reached any module of
+this package: the log file held the `__main__` lines and nothing else,
+92 of the 300 lines it should have had. `run_seq2seq` had the same list
+with `models`, a name that predates even `modeling`. Both name `lpu_nn`
+and `lpu` now.
+
 `LSTMDecoder` never initialized `last_state`, so a forward pass on a
 freshly built encoder-decoder raised `AttributeError` unless
 `reset_state()` had been called by hand. It also could not be constructed

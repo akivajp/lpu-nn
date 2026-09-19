@@ -118,6 +118,8 @@ select = [
 # (移植コードは未注釈。この 2 つは本パッケージ用に書き下ろしたもので注釈
 #  済みのため、ここを起点とする。移植分は注釈を付けた順に追加していく)
 files = [
+    "lpu_nn/commands/run_seq2seq.py",
+    "lpu_nn/commands/train_seq2seq.py",
     "lpu_nn/common/args.py",
     "lpu_nn/common/criteria.py",
     "lpu_nn/common/dataset.py",

@@ -30,6 +30,15 @@ corpus" というログを出した上で使われないパスを算出してい
 シーク不可能な入力の判定 (ファイルハンドルの閉じ漏れも併せて修正)、
 数値として解釈できないラベル)。
 
+訓練側が設定するロガー名 `target_loggers` が、移植前のトップレベル名
+(`common` / `modeling` / `optimizers`) のままでした。ロガー名はドット区切り
+で、その配下にしか効きません。`common` は `lpu_nn.common.training` の祖先
+ではないため、`--logging` のファイルハンドラも `--debug` も、本パッケージの
+どのモジュールにも届いていませんでした。ログファイルには `__main__` の行
+しか残らず、本来 300 行あるべきところが 92 行でした。`run_seq2seq` も同じ
+一覧を持っており、そちらは `modeling` より更に古い `models` という名前
+でした。いずれも `lpu_nn` と `lpu` を指すようにしました。
+
 `LSTMDecoder` は `last_state` を初期化しておらず、構築直後の
 encoder-decoder に対する forward は、手動で `reset_state()` を呼ばない限り
 `AttributeError` になりました。単独での構築もできませんでした。

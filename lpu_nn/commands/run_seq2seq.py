@@ -14,7 +14,7 @@ from lpu_nn.commands import train_seq2seq
 logger = logging.getColorLogger(__name__)
 dprint = logger.debug_print
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description = 'Sequence-to-Sequence Decoder')
     parser.add_argument('model', help='path to read the trained model (directory or config path)')
     parser.add_argument('--gpu', '-G', type=int, default=-1, help='GPU ID (negative value indicates CPU)')
@@ -29,7 +29,9 @@ def main():
 
     args = parser.parse_args()
     if args.debug:
-        logging.using_config(['__main__', 'common', 'models'], debug=True)
+        # 'models' は 'modeling' へ改名される前の名前。現在のロガーは
+        # lpu_nn.* と lpu.* の配下にある
+        logging.using_config(['__main__', 'lpu_nn', 'lpu'], debug=True)
         dprint(args)
 
     trainer = train_seq2seq.Seq2SeqTrainer().load_status(args.model)
