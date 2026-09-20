@@ -58,7 +58,7 @@ jobs:
       - name: Install with the CPU-only PyTorch build
         run: |
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install . pytest
+          python -m pip install '.[serve]' pytest
       - run: python -m pytest tests -v
       - name: Every command answers --help
         run: |
@@ -72,6 +72,9 @@ jobs:
           lpu-nn-train-bert-ranker --help > /dev/null
           lpu-nn-run-bert-ranker --help > /dev/null
           lpu-nn-train-tagger --help > /dev/null
+          lpu-nn-train-embedding --help > /dev/null
+          lpu-nn-run-tokenizer --help > /dev/null
+          lpu-nn-serve-seq2seq --help > /dev/null
 
   smoke:
     name: train and decode (CPU)
@@ -167,6 +170,24 @@ jobs:
         run: |
           test -f runs/ci-tag/record.best_dev_f1/model.pt
           test -s runs/ci-tag/record.latest/pred_dev.txt
+      # The character language model, and the tokenizer command applied to
+      # the vocabulary it trained.
+      # (文字言語モデルと、それが学習した語彙を使うトークナイザコマンド)
+      - name: Train the language model for one epoch
+        run: |
+          mkdir -p runs
+          cut -f1 tests/data/train.tsv > runs/lm-train.txt
+          cut -f1 tests/data/dev.tsv > runs/lm-dev.txt
+          python -m lpu_nn.commands.train_embedding runs/ci-lm \
+            runs/lm-train.txt --dev-files runs/lm-dev.txt \
+            --num-epochs 1 --batch-size 8 --vocab-size 100 \
+            --embed-size 32 --hidden-size 32 --gpu -1 \
+            --logging runs/ci-lm.log
+      - name: The tokenizer applies the vocabulary it trained
+        run: |
+          test -f runs/ci-lm/record.best_dev_loss/model.pt
+          cut -f1 tests/data/dev.tsv | head -5 \
+            | python -m lpu_nn.commands.run_tokenizer runs/ci-lm/sp.model
       - name: Nothing was written into the working directory
         run: |
           test ! -e TMP.txt
@@ -181,4 +202,5 @@ jobs:
             runs/ci-bert.log
             runs/ci-bert-cls.log
             runs/ci-tag.log
+            runs/ci-lm.log
           if-no-files-found: warn

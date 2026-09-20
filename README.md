@@ -22,8 +22,11 @@ What currently runs end to end on PyTorch 2.x / Python 3.13:
   (`lpu-nn-train-bert-ranker`)
 - sequence tagging (`lpu-nn-train-tagger`), over a BiLSTM, a transformer or
   a BERT encoder, with a linear or a CRF decoder
+- character language modeling (`lpu-nn-train-embedding`), the tokenizer
+  command (`lpu-nn-run-tokenizer`) and an HTTP server for a trained
+  sequence-to-sequence model (`lpu-nn-serve-seq2seq`)
 
-The language modeling part of the original codebase is not ported yet.
+The whole of the original codebase is ported.
 
 ## Requirements
 
@@ -171,6 +174,38 @@ weight still cannot load, and the command says so.
 Note that resuming without raising `--num-epochs` past the epoch already
 reached does nothing at all: there is no epoch left to run, so no checkpoint
 is written.
+
+### Language modeling and the tokenizer
+
+The language model trains on plain text, one sentence per line, and learns
+to predict the next token in both directions.
+
+```shell
+$ lpu-nn-train-embedding workdir corpus.txt --dev-files dev.txt --gpu 0
+```
+
+`lpu-nn-run-tokenizer` applies a SentencePiece model that any of these
+commands trained, reading from the standard input:
+
+```shell
+$ lpu-nn-run-tokenizer workdir/sp.model < text.txt
+$ lpu-nn-run-tokenizer workdir/sp.model --format id < text.txt
+```
+
+### Serving a sequence-to-sequence model
+
+```shell
+$ pip install 'lpu-nn[serve]'
+$ lpu-nn-serve-seq2seq ja-en=workdir/record.best_dev_bleu --port 8000
+```
+
+It answers `GET /` with a page for trying the model out, `/api/models` with
+the names it was given, and `/api/decode` with the decoded output as JSON.
+Several `name=path` pairs can be served at once.
+
+The server listens on `127.0.0.1` unless `--host` says otherwise, and it
+does not run in bottle's debug mode, which would return tracebacks to
+whoever called it.
 
 Run any command with `--help` for the full list of options.
 

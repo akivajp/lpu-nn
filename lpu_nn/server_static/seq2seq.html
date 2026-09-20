@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>The Seq2Seq Decoder</title>
+    <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.3.1.min.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+    <script>
+        $(function() {
+
+            var history_list = [];
+            var history_dict = {};
+
+            $('#input').keypress(function(e) {
+                //console.log(e);
+                //console.log(e.target);
+                //console.log(e.currentTarget);
+                //console.log(e.which);
+                update_length();
+                switch (e.which) {
+                    case 13:
+                        // Enter
+                        $('#decode').click();
+                        return false;
+                }
+            });
+            $('#input').keydown(function(e) {
+                update_length();
+            });
+
+            function update_length() {
+                var length = $('#input').val().length;
+                var max_length = 500;
+                $('#count-length').text(length + "/" + max_length);
+            }
+
+            function start_decoding() {
+                update_length();
+                $('#decode').text('Decoding...');
+                $('#decode').prop("disabled", true);
+                $('#error-message').hide();
+                $('#output').val('(Decoding)');
+            }
+            function finish_decoding() {
+                $('#decode').text('Decode (click or press Enter)')
+                $('#decode').prop("disabled", false);
+            }
+
+            $('#decode').click(function(e) {
+                if ($('#decode').prop('disabled')) {
+                    return false;
+                }
+                //var input = $('#input').val().trim();
+                var input = $('#input').val();
+                console.log(input);
+                if (input == "") {
+                    $('#output').val('');
+                    $('#error-message').text("Error: No Input");
+                    $('#error-message').show();
+                    return false;
+                }
+                //data = {
+                //    t: input,
+                //};
+                //console.log($('#model-name').val());
+                var model_name = $('#model-name').val();
+                data = {
+                    model_name: model_name,
+                    input: input,
+                };
+                function on_success(data) {
+                    console.log(data);
+                    //$('#output').val(data.trg_sent);
+                    var output = data.output[0];
+                    console.log(output)
+                    $('#output').val(output);
+                    if (!history_dict[input]) {
+                        history_list.push(data);
+                        history_dict[input] = data;
+                        $('#history-container').show();
+                        var list_item_src = $('<a>').attr({href:'#', class: "input-example list-group-item"}).text(input).prependTo($('#history-list-group'));
+                        var list_item_trg = $('<li>').attr({class: "list-group-item bg-light"});
+                        $('<span>').text(output).appendTo(list_item_trg);
+                        list_item_trg.append($('<br>'));
+                        $('<span>').addClass("small").text(JSON.stringify(data)).appendTo(list_item_trg);
+                        list_item_trg.insertAfter(list_item_src);
+                        $('.input-example').click(click_example);
+                    }
+                    finish_decoding();
+                    //console.log( history_dict );
+                };
+                function on_error(error) {
+                    data = error.responseJSON;
+                    console.log("ERROR")
+                    console.log(data);
+                    finish_decoding();
+                    console.log(data.error);
+                    if (data.error) {
+                        $('#error-message').text("Error: " + data.error.message)
+                        $('#error-message').show();
+                        finish_decoding();
+                        return;
+                    }
+                };
+                //console.log( history_dict[input] );
+                if (history_dict[input]) {
+                    on_success(history_dict[input]);
+                    return false;
+                }
+                console.log(data)
+                start_decoding();
+                $.ajax({
+                    type: "POST",
+                    url: "/api/decode",
+                    data: data,
+                    success: on_success,
+                    error: on_error,
+                });
+                return false;
+            });
+
+            function click_example(e) {
+                //console.log(e);
+                //console.log(e.target);
+                //console.log(e.currentTarget);
+                var input = $(e.target).text().trim();
+                //console.log(input);
+                $('#input').val(input);
+                $('#decode').click();
+            }
+            $('.input-example').click(click_example);
+
+        });
+    </script>
+</head>
+<body>
+
+<nav class="navbar navbar-expand navbar-light bg-light">
+    <span class="navbar-brand">The Seq2Seq Decoder</span>
+    <ul class="navbar-nav">
+        <li class="nav-item active"><a class="nav-link" href="#">Decoder</a></li>
+    </ul>
+</nav>
+
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-header text-white bg-primary">
+            Decoding Form
+        </div>
+        <div class="card-body">
+            <form>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="model-name">Model Name</label>
+                        <select  class="form-control" id="model-name">
+                            {% for name in model_names %}
+                            <option>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="input">Input</label>
+                        <textarea class="form-control" placeholder="Input" id="input" rows="3" style="resize: none;"></textarea>
+                        <div id="count-length" class="text-right">0/500</div>
+                    </div>
+                </div>
+                <div id="error-message" class="alert alert-danger" role="alert" style="display: none;"></div>
+                <div class="col-md-12">
+                    <button id="decode" class="btn btn-primary">Decode (click or press Enter)</button>
+                    <div class="form-group">
+                        <label for="output">Output</label>
+                        <textarea class="form-control" id="output" rows="3" style="resize: none;" readonly></textarea>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<hr />
+
+<div id="history-container" class="container-fluid" style="display: none;">
+    <div class="card">
+        <div class="card-header text-white bg-secondary">
+            History
+        </div>
+        <div class="card-body">
+            <ul id="history-list-group" class="list-group">
+            </ul>
+        </div>
+    </div>
+</div>
+
+<hr />
+
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-header text-white bg-secondary">
+            Examples
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                <a href="#" class="input-example list-group-item">
+                    四ふっ化酸化白金
+                </a>
+                <a href="#" class="input-example list-group-item">
+                    17α-[3-[[ブロモ(1-&lt;sup&gt;14&lt;/sup&gt;C)アセチル]アミノ]プロピル]エストラジオール
+                </a>
+                <a href="#" class="input-example list-group-item">
+                    7-[(7R)-7-アミノ-5-アザスピロ[2.4]ヘプタン-5-イル]-1-シクロプロピル-6-フルオロ-1,4-ジヒドロ-8-メトキシ-4-オキソ-3-キノリンカルボン酸
+                </a>
+            </ul>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+

@@ -13,6 +13,15 @@
 
 ### Added
 
+- The last three pieces of the same codebase: the character language model
+  (`LanguageModel`, `lpu-nn-train-embedding`), the tokenizer command
+  (`lpu-nn-run-tokenizer`), and the HTTP server for a trained
+  sequence-to-sequence model (`lpu-nn-serve-seq2seq`). The whole of the
+  original codebase is now ported.
+- A `serve` extra, which carries the only dependency the server needs. The
+  default install is unchanged.
+- A CI smoke test that trains the language model for one epoch and applies
+  the tokenizer to the vocabulary it trained.
 - `--override-model-params`, which lets a resume change the model structure
   the checkpoint was built with. Without it the structural parameters keep
   the checkpoint's values, and a differing one on the command line is
@@ -53,6 +62,38 @@
   about 1,900 lines of duplicated code.
 
 ### Fixed
+
+`modeling/language_models.py` and `train_embedding.py` declared their
+classes against `modules`, the name `modeling` was renamed from, so neither
+could be imported.
+
+`serve_seq2seq` set two environment variables at import time, which turned
+debug logging on for the whole process merely because the module was loaded,
+and named them after the package this one was renamed from.
+
+The server labelled the local clock as Japan time rather than reading the
+clock in that zone, so it reported the wrong time anywhere else. It uses the
+standard library's `zoneinfo` now, and `pytz` is no longer needed.
+
+The server listened on every interface with bottle's debug mode and the
+reloader forced on. It listens on `127.0.0.1` unless `--host` says
+otherwise, does not return tracebacks to the caller, and reloads only when
+asked.
+
+`LanguageModel.prepare_batch` handed `pad_sequence` a two-dimensional tensor
+for a single string, where the other branches pass a list of tensors, and
+fell through to an unbound name for a type it does not handle.
+
+`EmbeddingTrainer.feed_one_batch` had the signature from before the base
+trainer gained `df`, so the `TypeError` was caught by the training loop and
+the run learned nothing while reporting success.
+
+`run_tokenizer` configured logging on the logger object rather than the
+package names, so `--debug` reached only its own messages, and named a
+parameter `format`, which shadows the builtin.
+
+`LanguageModel.reset_state` advanced the decoder's state through
+`hasattr(...) and ...`, an expression whose value is discarded.
 
 Resuming a run rebuilt the model from the merged configuration before
 loading the weights into it, so a model parameter given on the command line

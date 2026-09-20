@@ -56,6 +56,13 @@ dependencies = [
 plot = [
     "matplotlib>=3.7",
 ]
+# The HTTP server is the only part that needs a web framework, so it stays
+# out of the default install.
+# (ウェブフレームワークを必要とするのは HTTP サーバだけなので、既定の
+#  インストールには含めない)
+serve = [
+    "bottle>=0.12",
+]
 
 [project.urls]
 Homepage = "https://github.com/akivajp/lpu-nn"
@@ -73,9 +80,13 @@ lpu-nn-run-bert-classifier = "lpu_nn.commands.run_bert_classifier:main"
 lpu-nn-train-bert-ranker = "lpu_nn.commands.train_bert_ranker:main"
 lpu-nn-run-bert-ranker = "lpu_nn.commands.run_bert_ranker:main"
 lpu-nn-train-tagger = "lpu_nn.commands.train_tagger:main"
+lpu-nn-train-embedding = "lpu_nn.commands.train_embedding:main"
+lpu-nn-run-tokenizer = "lpu_nn.commands.run_tokenizer:main"
+lpu-nn-serve-seq2seq = "lpu_nn.commands.serve_seq2seq:main"
 
 [dependency-groups]
 dev = [
+    "bottle>=0.12",
     "pytest>=8",
     "pytest-cov>=7",
     "ruff>=0.13",
@@ -135,6 +146,7 @@ files = [
     "lpu_nn/modeling/compare_aggregate.py",
     "lpu_nn/modeling/convolution.py",
     "lpu_nn/modeling/embeddings.py",
+    "lpu_nn/modeling/language_models.py",
     "lpu_nn/modeling/encoder_decoder.py",
     "lpu_nn/modeling/linear.py",
     "lpu_nn/modeling/lstm.py",
@@ -172,7 +184,7 @@ version = { file = "lpu_nn/VERSION" }
 include = ["lpu_nn*"]
 
 [tool.setuptools.package-data]
-lpu_nn = ["VERSION", "py.typed"]
+lpu_nn = ["VERSION", "py.typed", "server_static/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

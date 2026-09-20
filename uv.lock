@@ -82,6 +82,15 @@ wheels = [
 ]
 
 [[package]]
+name = "bottle"
+version = "0.13.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/71/cca6167c06d00c81375fd668719df245864076d284f7cb46a694cbeb5454/bottle-0.13.4.tar.gz", hash = "sha256:787e78327e12b227938de02248333d788cfe45987edca735f8f88e03472c3f47", size = 98717, upload-time = "2025-06-15T10:08:59.439Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/f6/b55ec74cfe68c6584163faa311503c20b0da4c09883a41e8e00d6726c954/bottle-0.13.4-py2.py3-none-any.whl", hash = "sha256:045684fbd2764eac9cdeb824861d1551d113e8b683d8d26e296898d3dd99a12e", size = 103807, upload-time = "2025-06-15T10:08:57.691Z" },
+]
+
+[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1004,6 +1013,7 @@ wheels = [
 name = "lpu"
 version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a1/4c/e4bae5b983dece55c02f3e30061a759b4bc9f92165c2419c59967746fece/lpu-0.6.0.tar.gz", hash = "sha256:a851289dda0fa34608abe0c6cb9c43338c22a2683d2d24d1f63cb4d55bd6e13d", size = 175998, upload-time = "2026-09-20T02:59:09.181Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6c/5f/2d49edc3aac0374e7257480f5909540a8bff29b5e0ffb4834cab4e1ac808/lpu-0.6.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:9b6d3b12fc47bfc604ee4cecb15bab1a46161da7042cdea2b3a1de1a14ede723", size = 624217, upload-time = "2026-09-20T02:57:54.535Z" },
     { url = "https://files.pythonhosted.org/packages/e0/b6/2bc0b28a4e9ac5bcc5150229ea3baff647b9fa7b7af89c59e0fa8c425bc2/lpu-0.6.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:537df0a908f2a14248cc9385f15813548b52e9cc618cd2e3fa7a343a24f9b1e6", size = 611519, upload-time = "2026-09-20T02:57:56.421Z" },
@@ -1041,6 +1051,10 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ca/77/0763c4489e431e3932dfcc360b169d8fd4ed96f0dd712fef2838415fbdc4/lpu-0.6.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:418b3d9e1b1d68b3773e12f2837a552d0fc51678602c9a1528bd62a3e59e4b99", size = 613277, upload-time = "2026-09-20T02:58:57.011Z" },
     { url = "https://files.pythonhosted.org/packages/9b/6e/9cef95d4e36fb7890409b7ae913478f44403045e4654b712013ecc556c64/lpu-0.6.0-cp314-cp314-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5b3c913bd9a81b906d8d90ed1904b8a6e35c7dbb7d4b515074b2bdcf0ae9721a", size = 3489788, upload-time = "2026-09-20T02:58:58.809Z" },
     { url = "https://files.pythonhosted.org/packages/e7/6b/beadd4640604bc89f80cce0c9d2dad151ae1810f764f5d028d157b53c32b/lpu-0.6.0-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4d0c1372b036f86914c6dd81181086bcea0abfdd12bce2043508d6ddb5609357", size = 3546327, upload-time = "2026-09-20T02:59:00.544Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/ef/197a140fc30c96f7e640124a33fb6da4927481321fc9e7cc1c1a0be4d20e/lpu-0.6.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:ba55a61df9186b742d6e448de69864a244b24499a5c3ecc38e113646178bc988", size = 4373852, upload-time = "2026-09-20T02:59:02.398Z" },
+    { url = "https://files.pythonhosted.org/packages/05/bd/4440d9cab4250d67290e1e229b7ec649f3b5913a028924442762a3a054be/lpu-0.6.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:88858b6c599e2b4312a7e42172bebf64512809ce03d0e96d70775b01c71596a3", size = 4521122, upload-time = "2026-09-20T02:59:04.185Z" },
+    { url = "https://files.pythonhosted.org/packages/24/da/64bfeb9f369ea37827b347a8e07988855f19ea19ecf249577c855549c08c/lpu-0.6.0-cp314-cp314-win32.whl", hash = "sha256:c3d7d420dc7493985f47fbae24efbe6c07824ca2dce8b2f24b179eef87d48896", size = 669773, upload-time = "2026-09-20T02:59:06.128Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/17/c9b4b27208ff76ddf04ca99628263f7e7e3cd6470eda53c360f1a0f7a4f2/lpu-0.6.0-cp314-cp314-win_amd64.whl", hash = "sha256:01bb57a154e4d4447447100dd4f8819991f1da2069d6741ad3a4065e8944edc9", size = 723920, upload-time = "2026-09-20T02:59:07.647Z" },
 ]
 
 [[package]]
@@ -1063,9 +1077,13 @@ plot = [
     { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "matplotlib", version = "3.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
+serve = [
+    { name = "bottle" },
+]
 
 [package.dev-dependencies]
 dev = [
+    { name = "bottle" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -1074,6 +1092,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "bottle", marker = "extra == 'serve'", specifier = ">=0.12" },
     { name = "lpu", specifier = ">=0.6" },
     { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.7" },
     { name = "nltk", specifier = ">=3.8" },
@@ -1082,10 +1101,11 @@ requires-dist = [
     { name = "sentencepiece", specifier = ">=0.2" },
     { name = "torch", specifier = ">=2.4" },
 ]
-provides-extras = ["plot"]
+provides-extras = ["plot", "serve"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "bottle", specifier = ">=0.12" },
     { name = "mypy", specifier = ">=1.11" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=7" },

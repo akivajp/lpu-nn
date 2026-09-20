@@ -22,8 +22,11 @@ PyTorch 2.x / Python 3.13 上で現在一通り動作するのは以下です。
   (`lpu-nn-train-bert-ranker`) へのファインチューニング
 - 系列タギング (`lpu-nn-train-tagger`)。BiLSTM / Transformer / BERT の
   符号化器と、線形 / CRF の復号器に対応
+- 文字言語モデル (`lpu-nn-train-embedding`)、トークナイザコマンド
+  (`lpu-nn-run-tokenizer`)、学習済み系列変換モデルの HTTP サーバ
+  (`lpu-nn-serve-seq2seq`)
 
-元コードに含まれる言語モデリングの部分は未移植です。
+元コードは全て移植済みです。
 
 ## 動作要件
 
@@ -172,6 +175,37 @@ $ lpu-nn-train-seq2seq workdir more-data.tsv --resume latest \
 なお、到達済みのエポック数を超えて `--num-epochs` を増やさずに再開しても
 何も起きません。実行すべきエポックが残っておらず、チェックポイントも
 書き出されないためです。
+
+### 言語モデルとトークナイザ
+
+言語モデルは 1 行 1 文のプレーンテキストで学習し、両方向の次トークンを
+予測します。
+
+```shell
+$ lpu-nn-train-embedding workdir corpus.txt --dev-files dev.txt --gpu 0
+```
+
+`lpu-nn-run-tokenizer` は、これらのコマンドが学習した SentencePiece
+モデルを標準入力に適用します。
+
+```shell
+$ lpu-nn-run-tokenizer workdir/sp.model < text.txt
+$ lpu-nn-run-tokenizer workdir/sp.model --format id < text.txt
+```
+
+### 系列変換モデルのサーバ
+
+```shell
+$ pip install 'lpu-nn[serve]'
+$ lpu-nn-serve-seq2seq ja-en=workdir/record.best_dev_bleu --port 8000
+```
+
+`GET /` は動作確認用のページ、`/api/models` は登録したモデル名、
+`/api/decode` は復号結果を JSON で返します。`名前=パス` の組を複数
+指定すれば、同時に複数のモデルを提供できます。
+
+待ち受けは `--host` を指定しない限り `127.0.0.1` のみです。また bottle の
+デバッグモードは使いません (例外の内容を要求元へ返してしまうため)。
 
 いずれのコマンドも `--help` で全オプションを確認できます。
 

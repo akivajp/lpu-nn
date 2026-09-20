@@ -22,6 +22,7 @@ __all__ = [
     'embeddings',
     'encoder_decoder',
     'format_module',
+    'language_models',
     'linear',
     'lstm',
     'module',
