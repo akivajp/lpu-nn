@@ -15,9 +15,11 @@ PyTorch 2.x / Python 3.13 上で現在一通り動作するのは以下です。
 
 - 系列変換モデルの訓練 (`lpu-nn-train-seq2seq`)
 - ビームサーチによる復号 (`lpu-nn-run-seq2seq`)
+- 系列マッチングとランキング (`lpu-nn-train-match-ranker`,
+  `lpu-nn-run-match-ranker`)。RE2 と Compare-Aggregate の 2 方式に対応
 
-元コードに含まれる BERT、系列タギング、系列マッチング、言語モデリングの
-各部分は未移植です。
+元コードに含まれる BERT、系列タギング、言語モデリングの各部分は
+未移植です。
 
 ## 動作要件
 
@@ -63,6 +65,33 @@ SentencePiece のトークナイザを学習し、データセットを構築し
 $ lpu-nn-run-seq2seq workdir/record.best_dev_loss --gpu 0 < test.txt > hyp.txt
 ```
 
+### 系列マッチングとランキング
+
+マッチングランカーは 2 本の系列の組にスコアを与えます。コーパスは
+2 本の系列と目標スコアの 3 列からなる TSV ファイルです。
+
+```shell
+$ lpu-nn-train-match-ranker workdir match-train.tsv --dev-files match-dev.tsv --gpu 0
+```
+
+`--match-pooler-type` でモデル構造を選びます。`re2`
+([Yang+ 2019](https://aclanthology.org/P19-1465/)) または
+`compare-aggregate` ([Wang & Jiang 2017](https://arxiv.org/abs/1611.01747))
+です。`--loss-method` は目標値の使い方を選びます。`point` はスコアへの回帰、
+`pair` はペアワイズのランキング損失、`classify` はラベル分布です。
+チェックポイントはランキング指標ごとに
+(`record.best_dev_mrr`, `record.best_dev_map` など) 書き出されます。
+
+採点は標準入力から 1 行 1 組で読み込みます。
+
+```shell
+$ lpu-nn-run-match-ranker workdir/record.best_dev_mrr --gpu 0 < pairs.tsv
+```
+
+`--evaluate` を付けると、代わりに正解付きコーパスに対する MRR・MAP・
+再現率@k を報告します。`--replies` は候補ファイル全体を各問い合わせに対して
+順位付けします。
+
 いずれのコマンドも `--help` で全オプションを確認できます。
 
 ## 構成
@@ -70,7 +99,7 @@ $ lpu-nn-run-seq2seq workdir/record.best_dev_loss --gpu 0 < test.txt > hyp.txt
 | モジュール | 内容 |
 | --- | --- |
 | `lpu_nn.common` | 訓練ループ、データセット、語彙、評価基準 |
-| `lpu_nn.modeling` | Transformer, Universal Transformer, LSTM, 注意機構, 埋め込み |
+| `lpu_nn.modeling` | Transformer, Universal Transformer, LSTM, 注意機構, 埋め込み, RE2, Compare-Aggregate |
 | `lpu_nn.optimizers` | AdaBound, LAMB と、訓練で用いる torch の最適化器 |
 | `lpu_nn.commands` | コマンドラインのエントリポイント |
 

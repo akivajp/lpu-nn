@@ -13,6 +13,18 @@
 
 ### Added
 
+- The sequence matching and ranking path of the same codebase: the RE2
+  ([Yang et al., 2019](https://aclanthology.org/P19-1465/)) and
+  Compare-Aggregate ([Wang and Jiang, 2017](https://arxiv.org/abs/1611.01747))
+  poolers, the sequence pooling functions they share, the `SequenceMatcher`
+  head, and the `lpu-nn-train-match-ranker` / `lpu-nn-run-match-ranker`
+  commands. It trains with a point-wise, a pair-wise or a classification
+  loss, and reports MRR, MAP, mean rank and recall at k.
+- A CI smoke test that trains the match ranker for one epoch and scores the
+  development set with the checkpoint it wrote.
+
+### Added
+
 - The sequence-to-sequence path of a private research codebase written in
   2019-2020, ported onto PyTorch 2.x and Python 3.13: the trainer, the
   dataset, the SentencePiece vocabulary, the transformer / universal
@@ -22,6 +34,67 @@
 - The configuration, logging, progress display, colors, dialog and file
   utilities are taken from `lpu` instead of being carried over, which drops
   about 1,900 lines of duplicated code.
+
+### Fixed
+
+`Fusion.forward` called `self.mod_direct` for all three of its views, so
+`mod_sub` and `mod_mult` were built, counted among the parameters and never
+reached by a gradient. RE2's augmented fusion had collapsed onto a single
+projection: the sub and mult features went through the same weights as the
+direct one.
+
+`SequenceAttentionPooling` wrapped `torch.Tensor(vector_size)`, which
+returns uninitialized memory, and its `init_weights` was commented out. The
+query vector therefore started as whatever the allocator handed back, in
+practice NaN. A one-dimensional parameter does not reach the generic
+`apply_init_weights` branch either, which only initializes `weight.dim() >
+1`, so nothing rescued it later. Attention is the default sequence pooling
+for every preset but the reference one, so the default configuration
+produced a NaN loss on the first step.
+
+`NGramPooler.forward` fed its `Conv2d` an input shorter than the kernel
+whenever a sentence was shorter than the n-gram order. With the default
+`ngram_orders` of `[1, 2, 3, 4, 5]`, any corpus containing a sentence of
+fewer than five tokens could not be trained at all. The input is now padded
+on the right, and the output is realigned to the input length rather than
+by a fixed `n - 1`.
+
+`SequenceMatcher.get_config` set `num_classes` only when `idmaps` carried a
+label map, so constructing the model for regression raised `KeyError:
+'num_classes'`. It also fell through silently for an unknown
+`match_pooler_type`, leaving every default unset, so the error surfaced as
+`KeyError: 'dropout_ratio'` rather than naming the pooler.
+
+`RE2Pooler.get_config` resolved the `pooling` alias after the preset
+defaults had already filled `sequence_pooling`, so the alias never took
+effect. It is resolved first now.
+
+`score` in the scorer compared `timeout > elapsed` and broke out of the
+loop when it was true, which is the case on the first batch. Passing
+`--eval-timeout` therefore scored nothing at all rather than stopping at
+the limit.
+
+The `--replies` branch of `eval_ranker` called `rank` with the signature of
+an older version, unpacking three values from what is a dict, and passed it
+id vectors, which cannot be used as dict keys. Every line raised and was
+swallowed by the enclosing `except`, leaving the rank list empty for a
+`ZeroDivisionError` in the metrics below. It ranks the candidate file
+against each query now, and the two metric helpers it duplicated are taken
+from `lpu.metrics.ranking`.
+
+The scorer's `main` targeted the loggers `common` and `models`, names from
+before the port, so `--debug` and `--logging` produced no output from
+`lpu_nn` or `lpu`.
+
+Ranked replies were ordered out of a `set`, so replies with equal scores
+came out in an order that varied between runs and the reported metrics
+varied with them. Ties break on the reply text now.
+
+Scoring built an autograd graph it never used, for every batch of every
+candidate.
+
+`mean` divided by the length of a list that is empty when no query has a
+correct answer.
 
 ### Fixed
 

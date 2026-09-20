@@ -64,6 +64,8 @@ jobs:
         run: |
           lpu-nn-train-seq2seq --help > /dev/null
           lpu-nn-run-seq2seq --help > /dev/null
+          lpu-nn-train-match-ranker --help > /dev/null
+          lpu-nn-run-match-ranker --help > /dev/null
 
   smoke:
     name: train and decode (CPU)
@@ -95,6 +97,25 @@ jobs:
           test -f runs/ci/record.best_dev_loss/model.pt
           cut -f1 tests/data/dev.tsv | head -5 \
             | python -m lpu_nn.commands.run_seq2seq runs/ci/record.best_dev_loss
+      # The same end-to-end pass for the match ranker. Its corpus is the
+      # seq2seq one turned into positive/negative pairs, so the two smoke
+      # tests share their data and stay cheap.
+      # (マッチングランカーも同じ経路で通す。コーパスは seq2seq のものを
+      #  正例・負例のペアに組み替えたもので、データを共有して軽く保つ)
+      - name: Train the match ranker for one epoch
+        run: |
+          python -m lpu_nn.commands.train_match_ranker runs/ci-match \
+            tests/data/match-train.tsv \
+            --dev-files tests/data/match-dev.tsv \
+            --num-epochs 1 --batch-size 16 --vocab-size 100 \
+            --embed-size 32 --hidden-size 32 --gpu -1 \
+            --logging runs/ci-match-train.log
+      - name: The best ranker checkpoint exists and scores
+        run: |
+          test -f runs/ci-match/record.best_dev_mrr/model.pt
+          python -m lpu_nn.commands.run_match_ranker \
+            runs/ci-match/record.best_dev_mrr \
+            --evaluate tests/data/match-dev.tsv
       - name: Nothing was written into the working directory
         run: |
           test ! -e TMP.txt
@@ -103,5 +124,7 @@ jobs:
         if: always()
         with:
           name: training-log
-          path: runs/ci-train.log
+          path: |
+            runs/ci-train.log
+            runs/ci-match-train.log
           if-no-files-found: warn

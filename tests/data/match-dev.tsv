@@ -1,0 +1,60 @@
+two two	に に	1
+two two	いち ろく	0
+two two	なな なな きゅう	0
+three five five ten	さん ご ご じゅう	1
+three five five ten	きゅう きゅう さん はち	0
+three five five ten	きゅう はち きゅう ご	0
+ten one ten	じゅう いち じゅう	1
+ten one ten	ご よん はち きゅう ろく	0
+ten one ten	ご ご きゅう きゅう きゅう	0
+seven seven nine	なな なな きゅう	1
+seven seven nine	ご よん はち きゅう ろく	0
+seven seven nine	はち ろく じゅう きゅう はち	0
+nine eight nine five	きゅう はち きゅう ご	1
+nine eight nine five	よん よん いち	0
+nine eight nine five	なな なな きゅう	0
+one six	いち ろく	1
+one six	ご よん はち きゅう ろく	0
+one six	に に	0
+six seven seven nine three	ろく なな なな きゅう さん	1
+six seven seven nine three	はち ろく じゅう きゅう はち	0
+six seven seven nine three	よん ろく さん じゅう ご	0
+four four one	よん よん いち	1
+four four one	に に	0
+four four one	ご ご きゅう きゅう きゅう	0
+six three three	ろく さん さん	1
+six three three	きゅう きゅう さん はち	0
+six three three	よん よん いち	0
+nine nine three eight	きゅう きゅう さん はち	1
+nine nine three eight	ご じゅう	0
+nine nine three eight	なな なな きゅう	0
+nine six ten six six	きゅう ろく じゅう ろく ろく	1
+nine six ten six six	さん なな はち きゅう よん	0
+nine six ten six six	に に	0
+three seven eight nine four	さん なな はち きゅう よん	1
+three seven eight nine four	に に	0
+three seven eight nine four	ご じゅう	0
+five eight nine nine six	ご はち きゅう きゅう ろく	1
+five eight nine nine six	に いち じゅう	0
+five eight nine nine six	に に	0
+eight six ten nine eight	はち ろく じゅう きゅう はち	1
+eight six ten nine eight	ご はち きゅう きゅう ろく	0
+eight six ten nine eight	ろく なな なな きゅう さん	0
+four six three ten five	よん ろく さん じゅう ご	1
+four six three ten five	はち ろく じゅう きゅう はち	0
+four six three ten five	に に	0
+five five nine nine nine	ご ご きゅう きゅう きゅう	1
+five five nine nine nine	ろく いち	0
+five five nine nine nine	よん よん いち	0
+five four eight nine six	ご よん はち きゅう ろく	1
+five four eight nine six	よん ろく さん じゅう ご	0
+five four eight nine six	ご ご きゅう きゅう きゅう	0
+six one	ろく いち	1
+six one	に いち じゅう	0
+six one	よん よん いち	0
+two one ten	に いち じゅう	1
+two one ten	さん なな はち きゅう よん	0
+two one ten	よん よん いち	0
+five ten	ご じゅう	1
+five ten	よん よん いち	0
+five ten	よん ろく さん じゅう ご	0

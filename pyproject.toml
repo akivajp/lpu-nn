@@ -65,6 +65,8 @@ Issues = "https://github.com/akivajp/lpu-nn/issues"
 [project.scripts]
 lpu-nn-train-seq2seq = "lpu_nn.commands.train_seq2seq:main"
 lpu-nn-run-seq2seq = "lpu_nn.commands.run_seq2seq:main"
+lpu-nn-train-match-ranker = "lpu_nn.commands.train_match_ranker:main"
+lpu-nn-run-match-ranker = "lpu_nn.commands.run_match_ranker:main"
 
 [dependency-groups]
 dev = [
@@ -121,12 +123,16 @@ files = [
     "lpu_nn/common/vocab.py",
     "lpu_nn/modeling/activation.py",
     "lpu_nn/modeling/attention.py",
+    "lpu_nn/modeling/compare_aggregate.py",
     "lpu_nn/modeling/convolution.py",
     "lpu_nn/modeling/embeddings.py",
     "lpu_nn/modeling/encoder_decoder.py",
     "lpu_nn/modeling/linear.py",
     "lpu_nn/modeling/lstm.py",
     "lpu_nn/modeling/module.py",
+    "lpu_nn/modeling/pooling.py",
+    "lpu_nn/modeling/re2.py",
+    "lpu_nn/modeling/sequence_matcher.py",
     "lpu_nn/modeling/transformer.py",
     "lpu_nn/modeling/universal_transformer.py",
     "lpu_nn/optimizers/adabound.py",

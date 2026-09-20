@@ -14,6 +14,7 @@ __all__ = [
     'activation',
     'apply_to',
     'attention',
+    'compare_aggregate',
     'convolution',
     'embeddings',
     'encoder_decoder',
@@ -21,6 +22,9 @@ __all__ = [
     'linear',
     'lstm',
     'module',
+    'pooling',
+    're2',
+    'sequence_matcher',
     'transformer',
     'universal_transformer',
 ]

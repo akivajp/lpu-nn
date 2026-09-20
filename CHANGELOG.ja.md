@@ -13,6 +13,18 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
 
 ### 追加
 
+- 同じコードベースの系列マッチング・ランキング部分。RE2
+  ([Yang+ 2019](https://aclanthology.org/P19-1465/)) と Compare-Aggregate
+  ([Wang & Jiang 2017](https://arxiv.org/abs/1611.01747)) の 2 方式、
+  両者が共有する系列プーリング、`SequenceMatcher` の出力層、そして
+  `lpu-nn-train-match-ranker` / `lpu-nn-run-match-ranker` コマンド。
+  ポイントワイズ・ペアワイズ・分類の 3 つの損失で訓練でき、
+  MRR・MAP・平均順位・再現率@k を報告する。
+- マッチングランカーを 1 エポック訓練し、書き出したチェックポイントで
+  開発セットを採点する CI スモークテスト。
+
+### 追加
+
 - 2019-2020 年に書かれた非公開の研究コードのうち、系列変換 (seq2seq) 経路を
   PyTorch 2.x / Python 3.13 へ移植しました。訓練ループ、データセット、
   SentencePiece 語彙、Transformer / Universal Transformer / LSTM の各モジュール、
@@ -20,6 +32,62 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
   `lpu-nn-train-seq2seq` / `lpu-nn-run-seq2seq` コマンドが対象です。
 - 設定・ロギング・進捗表示・色付け・対話・ファイル操作は移植せず `lpu` の
   ものを用います。これにより約 1,900 行の重複コードが不要になりました。
+
+### 修正
+
+`Fusion.forward` が 3 つの特徴すべてに `self.mod_direct` を使っており、
+`mod_sub` と `mod_mult` は構築されパラメータとして数えられながら、
+勾配が一度も届いていなかった。RE2 の augmented fusion が単一射影に
+退化しており、差と積の特徴が直和の特徴と同じ重みを通っていた。
+
+`SequenceAttentionPooling` が未初期化メモリを返す
+`torch.Tensor(vector_size)` をそのままパラメータにしており、
+`init_weights` はコメントアウトされていた。問い合わせベクトルは
+アロケータが返した値のまま、実際には NaN で始まっていた。1 次元の
+パラメータは `apply_init_weights` の汎用処理 (`weight.dim() > 1`) にも
+掛からないため、後から救われることもなかった。参照プリセット以外では
+注意プーリングが既定なので、既定設定は 1 ステップ目で損失が NaN に
+なっていた。
+
+`NGramPooler.forward` は、文が n-gram 長より短いときに畳み込みへ
+カーネルより小さい入力を渡していた。既定の `ngram_orders` は
+`[1, 2, 3, 4, 5]` なので、5 語未満の文を含むコーパスは訓練を開始
+できなかった。入力を右側で埋め、出力長は固定の `n - 1` ではなく
+入力長に合わせて揃えるようにした。
+
+`SequenceMatcher.get_config` は `idmaps` にラベル表がある場合のみ
+`num_classes` を設定しており、回帰用に構築すると
+`KeyError: 'num_classes'` になっていた。未知の `match_pooler_type` でも
+黙って素通りするため既定値が一切入らず、種別ではなく
+`KeyError: 'dropout_ratio'` として表面化していた。
+
+`RE2Pooler.get_config` は、プリセットの既定値が `sequence_pooling` を
+埋めた後に `pooling` 別名を解決していたため、別名が効かなかった。
+先に解決するようにした。
+
+採点側の `score` は `timeout > 経過時間` で打ち切っており、これは
+1 バッチ目で成立する。`--eval-timeout` を指定すると制限まで採点される
+どころか 1 件も採点されなかった。
+
+`eval_ranker` の `--replies` 分岐は、旧版の署名で `rank` を呼んで
+dict から 3 要素を取り出そうとし、さらに dict のキーにできない id 列を
+渡していた。毎行が例外となって外側の `except` に握り潰され、
+順位リストが空のまま下の指標計算が `ZeroDivisionError` になっていた。
+候補ファイル全体を各問い合わせに対して順位付けするようにし、
+重複実装していた 2 つの指標は `lpu.metrics.ranking` から取るようにした。
+
+採点コマンドの `main` が移植前のロガー名 `common` と `models` を
+対象にしていたため、`--debug` や `--logging` を付けても `lpu_nn` や
+`lpu` の出力が得られなかった。
+
+順位付けした応答を `set` から取り出していたため、同点の応答の並びが
+実行毎に変わり、報告される指標もそれに応じて揺れていた。同点は
+応答文字列で決定的に並べるようにした。
+
+採点が、候補全バッチについて使われない自動微分グラフを構築していた。
+
+`mean` が、正解を含む問い合わせが 1 件も無いときに空リストの長さで
+割っていた。
 
 ### 修正
 

@@ -15,9 +15,11 @@ What currently runs end to end on PyTorch 2.x / Python 3.13:
 
 - sequence-to-sequence training (`lpu-nn-train-seq2seq`)
 - decoding with beam search (`lpu-nn-run-seq2seq`)
+- sequence matching and ranking (`lpu-nn-train-match-ranker`,
+  `lpu-nn-run-match-ranker`), with the RE2 and Compare-Aggregate poolers
 
-The BERT, sequence tagging, sequence matching and language modeling parts of
-the original codebase are not ported yet.
+The BERT, sequence tagging and language modeling parts of the original
+codebase are not ported yet.
 
 ## Requirements
 
@@ -62,14 +64,40 @@ Decoding reads from the standard input and writes to the standard output:
 $ lpu-nn-run-seq2seq workdir/record.best_dev_loss --gpu 0 < test.txt > hyp.txt
 ```
 
-Run either command with `--help` for the full list of options.
+### Sequence matching and ranking
+
+The match ranker scores a pair of sequences. Its corpus is a TSV file of
+three columns: the two sequences and the target score.
+
+```shell
+$ lpu-nn-train-match-ranker workdir match-train.tsv --dev-files match-dev.tsv --gpu 0
+```
+
+`--match-pooler-type` selects the architecture: `re2`
+([Yang et al., 2019](https://aclanthology.org/P19-1465/)) or
+`compare-aggregate` ([Wang and Jiang, 2017](https://arxiv.org/abs/1611.01747)).
+`--loss-method` selects how the target is used: `point` for regression on the
+score, `pair` for a pairwise ranking loss, `classify` for a label
+distribution. The checkpoints are written per ranking metric
+(`record.best_dev_mrr`, `record.best_dev_map`, ...).
+
+Scoring reads pairs from the standard input, one per line:
+
+```shell
+$ lpu-nn-run-match-ranker workdir/record.best_dev_mrr --gpu 0 < pairs.tsv
+```
+
+`--evaluate` reports MRR, MAP and recall at k on a labelled corpus instead,
+and `--replies` ranks a whole candidate file against each query.
+
+Run any command with `--help` for the full list of options.
 
 ## Layout
 
 | Module | Contents |
 | --- | --- |
 | `lpu_nn.common` | the trainer, the dataset, the vocabulary, the criteria |
-| `lpu_nn.modeling` | transformer, universal transformer, LSTM, attention, embeddings |
+| `lpu_nn.modeling` | transformer, universal transformer, LSTM, attention, embeddings, RE2, Compare-Aggregate |
 | `lpu_nn.optimizers` | AdaBound, LAMB, and the torch optimizers used by the trainer |
 | `lpu_nn.commands` | the command line entry points |
 
