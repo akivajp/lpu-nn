@@ -31,6 +31,18 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+The progress report spelled `amsbound` as `amdbound`, so the dynamic
+lower bound on the learning rate was left out of the line for
+`--optimizer amsbound`. The rate it printed was the raw one, which on a
+warmup step is far below what the optimizer actually applies: 0.00000389
+where the effective rate is 0.00006296.
+
+Two of its fields read a missing metric as the string `'nan'` and handed
+it to a numeric format, so the field vanished from the line rather than
+reading `nan`. Its `except` clause was a bare `pass`, which is what let
+that go unnoticed; it logs at debug level now. The token rate divided by
+an interval that can be zero.
+
 `--eval-train` was folded into the saved configuration while every other
 `store_true` flag is left out of it. The default of such a flag is
 `False`, not `None`, so an unspecified flag reads as an explicit `False`

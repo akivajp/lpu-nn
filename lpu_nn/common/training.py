@@ -883,7 +883,9 @@ class Trainer:
                     msg += f"{field}: {str_i}/{num_batches}"
                 elif field in ['lr']:
                     lr = self.optimizer.param_groups[0]['lr']
-                    if cdata.train.optimizer in ['adabound', 'amdbound']:
+                    # 'amdbound' と綴られており、--optimizer amsbound では
+                    # 学習率の下限が表示に反映されていなかった
+                    if cdata.train.optimizer in ['adabound', 'amsbound']:
                         final_lr = self.optimizer.param_groups[0]['final_lr']
                         gamma = self.optimizer.param_groups[0]['gamma']
                         step = cdata.log.train_step
@@ -900,10 +902,10 @@ class Trainer:
                     accuracy = float(mean_report.get('ntacc', 'nan'))
                     msg += f"{field}: {accuracy:.4f}"
                 elif field in ['rest_acc', 'restore', 'restore_accuracy']:
-                    accuracy = mean_report.get('rest_acc', 'nan')
+                    accuracy = float(mean_report.get('rest_acc', 'nan'))
                     msg += f"{field}: {accuracy:.4f}"
                 elif field in ['cont_acc', 'continuity_accuracy']:
-                    accuracy = mean_report.get('cont_acc', 'nan')
+                    accuracy = float(mean_report.get('cont_acc', 'nan'))
                     msg += f"{field}: {accuracy:.3f}"
                 elif field in ['ppl', 'perplexity']:
                     ppl = float(mean_report.get('ppl', 'nan'))
@@ -948,10 +950,12 @@ class Trainer:
                 elif field in ['tokens/s', 'tokens/sec']:
                     if self.model.training:
                         delta_tokens = cdata.log.fed_tokens - progress['last_tokens']
-                        msg += f"{field}: {delta_tokens / delta:.1f}"
-            except Exception:
-                #logger.exception(e)
-                pass
+                        # 同じ時刻に 2 度呼ばれると 0 除算になる
+                        if delta > 0:
+                            msg += f"{field}: {delta_tokens / delta:.1f}"
+            except Exception as e:
+                # 完全に黙らせると、その指標が表示から静かに消えるだけになる
+                logger.debug(f"could not format the progress field {field!r}: {e!r}")
         logger.info(msg)
         progress['accum_batches'] = 0
         progress['accum_errors'] = 0
