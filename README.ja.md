@@ -17,9 +17,11 @@ PyTorch 2.x / Python 3.13 上で現在一通り動作するのは以下です。
 - ビームサーチによる復号 (`lpu-nn-run-seq2seq`)
 - 系列マッチングとランキング (`lpu-nn-train-match-ranker`,
   `lpu-nn-run-match-ranker`)。RE2 と Compare-Aggregate の 2 方式に対応
+- BERT の事前学習 (`lpu-nn-train-bert`) と、分類
+  (`lpu-nn-train-bert-classifier`)・ペアランキング
+  (`lpu-nn-train-bert-ranker`) へのファインチューニング
 
-元コードに含まれる BERT、系列タギング、言語モデリングの各部分は
-未移植です。
+元コードに含まれる系列タギングと言語モデリングの各部分は未移植です。
 
 ## 動作要件
 
@@ -92,6 +94,41 @@ $ lpu-nn-run-match-ranker workdir/record.best_dev_mrr --gpu 0 < pairs.tsv
 再現率@k を報告します。`--replies` は候補ファイル全体を各問い合わせに対して
 順位付けします。
 
+### BERT
+
+事前学習は文ペアの TSV ファイルを受け取り、マスク言語モデルと
+次文予測を同時に学習します。
+
+```shell
+$ lpu-nn-train-bert workdir train.tsv --dev-files dev.tsv --gpu 0
+```
+
+`--universal` は固定段数の代わりに Universal Transformer
+(適応的な段数と ponder cost を持つ) を用います。`--num-token-types 2`
+を指定すると、ペアの左右を区別するセグメント埋め込みが有効になります。
+
+ファインチューニングは事前学習済みチェックポイントから始めます。
+分類器は「文 + ラベル」、ランカーは「文ペア」の TSV を受け取ります。
+
+```shell
+$ lpu-nn-train-bert-classifier workdir class-train.tsv --dev-files class-dev.tsv \
+    --pre-trained-model bert-workdir/record.best_dev_loss \
+    --sentencepiece bert-workdir/sp.model --gpu 0
+$ lpu-nn-run-bert-classifier workdir/record.best_dev_acc < sentences.txt
+```
+
+`--pre-trained-model` には `--sentencepiece` を併せて指定します。
+作業ディレクトリごとにトークナイザを学習する一方、ファインチューニングは
+事前学習済みの埋め込みをそのまま引き継ぐため、語彙は同一である必要が
+あります。食い違う場合は、読み直せないチェックポイントを書き出す前に
+起動を拒否します。
+
+採点コマンドは 1 行 1 件で予測ラベルを書き出します。`--ranking` を付けると
+`文<TAB>ラベル` を読み込み、既知ラベル全体に対する MRR と
+精度@k を報告します。ペアランカー用の `lpu-nn-run-bert-ranker` は
+`文1|||文2` を読んでスコアを 1 行 1 件で出力し、`--replies` を付けると
+候補ファイル全体を各問い合わせに対して順位付けします。
+
 いずれのコマンドも `--help` で全オプションを確認できます。
 
 ## 構成
@@ -99,7 +136,7 @@ $ lpu-nn-run-match-ranker workdir/record.best_dev_mrr --gpu 0 < pairs.tsv
 | モジュール | 内容 |
 | --- | --- |
 | `lpu_nn.common` | 訓練ループ、データセット、語彙、評価基準 |
-| `lpu_nn.modeling` | Transformer, Universal Transformer, LSTM, 注意機構, 埋め込み, RE2, Compare-Aggregate |
+| `lpu_nn.modeling` | Transformer, Universal Transformer, LSTM, 注意機構, 埋め込み, RE2, Compare-Aggregate, BERT |
 | `lpu_nn.optimizers` | AdaBound, LAMB と、訓練で用いる torch の最適化器 |
 | `lpu_nn.commands` | コマンドラインのエントリポイント |
 

@@ -17,9 +17,12 @@ What currently runs end to end on PyTorch 2.x / Python 3.13:
 - decoding with beam search (`lpu-nn-run-seq2seq`)
 - sequence matching and ranking (`lpu-nn-train-match-ranker`,
   `lpu-nn-run-match-ranker`), with the RE2 and Compare-Aggregate poolers
+- BERT pre-training (`lpu-nn-train-bert`) and fine-tuning for classification
+  (`lpu-nn-train-bert-classifier`) and pair ranking
+  (`lpu-nn-train-bert-ranker`)
 
-The BERT, sequence tagging and language modeling parts of the original
-codebase are not ported yet.
+The sequence tagging and language modeling parts of the original codebase
+are not ported yet.
 
 ## Requirements
 
@@ -90,6 +93,41 @@ $ lpu-nn-run-match-ranker workdir/record.best_dev_mrr --gpu 0 < pairs.tsv
 `--evaluate` reports MRR, MAP and recall at k on a labelled corpus instead,
 and `--replies` ranks a whole candidate file against each query.
 
+### BERT
+
+Pre-training takes a TSV file of sentence pairs and learns a masked language
+model together with next-sentence prediction.
+
+```shell
+$ lpu-nn-train-bert workdir train.tsv --dev-files dev.tsv --gpu 0
+```
+
+`--universal` uses a Universal Transformer (with an adaptive number of steps
+and a ponder cost) instead of a fixed stack, and `--num-token-types 2` adds
+the segment embedding that distinguishes the two sides of a pair.
+
+Fine-tuning starts from a pre-trained checkpoint. The classifier takes a TSV
+file of a sentence and its label; the ranker takes a TSV file of pairs.
+
+```shell
+$ lpu-nn-train-bert-classifier workdir class-train.tsv --dev-files class-dev.tsv \
+    --pre-trained-model bert-workdir/record.best_dev_loss \
+    --sentencepiece bert-workdir/sp.model --gpu 0
+$ lpu-nn-run-bert-classifier workdir/record.best_dev_acc < sentences.txt
+```
+
+`--sentencepiece` is required alongside `--pre-trained-model`: each work
+directory trains its own tokenizer, and fine-tuning reuses the pre-trained
+embedding, so the two vocabularies have to be the same one. The command
+refuses to start when they differ rather than writing a checkpoint that
+cannot be loaded back.
+
+The scorer writes one predicted label per line. `--ranking` reads
+`sentence<TAB>label` instead and reports MRR and precision at k over the
+known labels. The pair ranker's scorer, `lpu-nn-run-bert-ranker`, reads
+`sentence1|||sentence2` and writes one score per line, or ranks a candidate
+file against each query with `--replies`.
+
 Run any command with `--help` for the full list of options.
 
 ## Layout
@@ -97,7 +135,7 @@ Run any command with `--help` for the full list of options.
 | Module | Contents |
 | --- | --- |
 | `lpu_nn.common` | the trainer, the dataset, the vocabulary, the criteria |
-| `lpu_nn.modeling` | transformer, universal transformer, LSTM, attention, embeddings, RE2, Compare-Aggregate |
+| `lpu_nn.modeling` | transformer, universal transformer, LSTM, attention, embeddings, RE2, Compare-Aggregate, BERT |
 | `lpu_nn.optimizers` | AdaBound, LAMB, and the torch optimizers used by the trainer |
 | `lpu_nn.commands` | the command line entry points |
 

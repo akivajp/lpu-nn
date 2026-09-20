@@ -288,8 +288,10 @@ class FieldMap:
                     seq_indices.append(i)
             if seq_indices:
                 #Vocabulary.train_tsv(model_prefix, tsv_path, vocab_size, extra_symbols, seq_indices)
-                #train_tokenizer(model_prefix, tsv_path, vocab_size, extra_symbols)
-                train_tokenizer(model_prefix, tsv_path, vocab_size)
+                # extra_symbols を渡さないと、set_symbols() が
+                # piece_to_id() で unk を引いて ValueError になる
+                train_tokenizer(model_prefix, tsv_path, vocab_size,
+                                user_defined_symbols=list(extra_symbols.values()))
         for i, (key, val) in enumerate(main_fields.items()):
             #if val in ['tokens']:
             dprint( (key, val) )

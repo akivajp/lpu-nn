@@ -13,6 +13,17 @@
 
 ### Added
 
+- The BERT path of the same codebase: pre-training with a masked language
+  model and next-sentence prediction, and fine-tuning for classification and
+  for pair ranking, as `lpu-nn-train-bert`,
+  `lpu-nn-train-bert-classifier` / `lpu-nn-run-bert-classifier` and
+  `lpu-nn-train-bert-ranker` / `lpu-nn-run-bert-ranker`.
+- `train_tokenizer` takes `user_defined_symbols`, and `FieldMap.train`
+  passes the trainer's extra symbols to it. Without this the symbols a task
+  declares (BERT's `<cls>` / `<sep>` / `<mask>`) never enter the
+  SentencePiece vocabulary, and building the vocabulary fails.
+- A CI smoke test that pre-trains BERT for one epoch, fine-tunes a
+  classifier from that checkpoint and classifies with the result.
 - The sequence matching and ranking path of the same codebase: the RE2
   ([Yang et al., 2019](https://aclanthology.org/P19-1465/)) and
   Compare-Aggregate ([Wang and Jiang, 2017](https://arxiv.org/abs/1611.01747))
@@ -22,9 +33,6 @@
   loss, and reports MRR, MAP, mean rank and recall at k.
 - A CI smoke test that trains the match ranker for one epoch and scores the
   development set with the checkpoint it wrote.
-
-### Added
-
 - The sequence-to-sequence path of a private research codebase written in
   2019-2020, ported onto PyTorch 2.x and Python 3.13: the trainer, the
   dataset, the SentencePiece vocabulary, the transformer / universal
@@ -36,6 +44,95 @@
   about 1,900 lines of duplicated code.
 
 ### Fixed
+
+`--pre-trained-model` replaced the whole `mod_bert` without checking that
+the two vocabularies match. Each work directory trains its own tokenizer, so
+they normally do not, and the fine-tuned checkpoint was written with an
+embedding that disagreed with its own recorded vocabulary size: loading it
+back raised a size mismatch. Fine-tuning now refuses to start unless
+`--sentencepiece` points at the pre-trained tokenizer.
+
+`create_parser` in both fine-tuning commands was a `staticmethod` taking
+only the model name, while the base and `train_bert` are classmethods that
+also take the defaults. `main` builds the parser twice, and the second call,
+which is what prints `--help`, passes the defaults, so neither command could
+print its help.
+
+`modeling/bert_classifier.py` and `modeling/bert_ranker.py` imported
+`modules`, the name `modeling` was renamed from. Neither could be imported
+since that rename, so the classifier and the ranker were unreachable
+together with the two trainers and the two scorers that build on them.
+
+`Bert` built its token and segment embeddings as plain `nn.Embedding` with
+`padding_idx` set to the vocabulary's pad id. SentencePiece has no pad token
+and reports `-1`, so the padded positions of every batch indexed the
+embedding with `-1` and training stopped at "index out of range in self".
+Both now use `modeling.embeddings.Embedding`, which is written for exactly
+this and substitutes a valid index before the lookup.
+
+`Bert` looked for `UniversalTransformer` in `modeling.transformer`, but it
+lives in `modeling.universal_transformer` since the split, so `--universal`
+raised `AttributeError` at construction.
+
+`BertRanker.forward` passed the segment information as `segment_id_seq`,
+while `Bert.forward` reads `segment_info`. The value was swallowed by
+`**features` and silently discarded, so the ranker never told the model
+which of the two sequences each token belonged to.
+
+`BertClassifier.__init__` took its first argument as `vocab` and read
+`vocab.pad` from it, but what it receives is the field map. Constructing it
+raised `AttributeError`.
+
+`feed_one_batch` and `evaluate` in all three BERT trainers had the
+signatures the base trainer used before it gained `df`, `feed_batches` and
+`report`. The resulting `TypeError` was caught by the training loop's
+`except`, so a run reported success while learning nothing.
+
+`BertClassifierTrainer` and `BertRankerTrainer` overrode `__init__` without
+the `args` parameter, which `main` passes, so neither could be constructed.
+
+Both fine-tuning commands registered `--pre` and `-P` as aliases of
+`--pre-trained-model`, although the base parser already uses them for
+`--preset`. `argparse` rejects the conflict while building the parser, so
+neither command could even print `--help`.
+
+`Trainer.save_labels` called `self.vocab.decode(label)`. `load_labels` had
+moved to keeping labels as plain strings, and `self.vocab` no longer exists
+at all, so every task with labels failed at setup.
+
+The classifier and the ranker still read `self.vocab` in four places, a
+name that was replaced by `self.idmaps['seq']`.
+
+`train_bert` put a tensor into the report for `rest_acc` while every other
+field is converted with `float()`, so pandas refused to average the report
+and the autograd graph was retained for the whole epoch.
+
+`train_bert_classifier` assigned a list of predictions with `df.at`, which
+takes a single label, not an index array.
+
+`training.infomain` and `training.comm_main` are leftovers of the
+multi-process support that was dropped on the port, and neither exists.
+They were reached by the fine-tuning commands and by `--schedule-num-steps`.
+The same branch then read `self.model.max_steps`, which `set_max_steps`
+leaves unset unless the configuration carries `model.max_steps`.
+
+The `--replies` branch of `run_bert_ranker` called `Trainer.load_status`
+unbound on the base class, passed it a `model_path` it no longer takes, and
+encoded the candidates with `sent2idvec`, a method that no longer exists.
+The scoring loop referenced `xp` and `F`, chainer names that were never
+imported, and the classifier's loop wrote its predictions with `dprint`, so
+nothing reached the standard output even had it run.
+
+`run_bert_classifier --ranking` encoded the correct label into token ids
+before comparing it against the label strings, so no rank was ever found and
+the metrics divided by zero.
+
+Both scorers assigned `logging.using_config(...)` to a variable instead of
+entering it, so `--debug` did nothing, and targeted the logger `logger`
+rather than the package names.
+
+The four ranking metrics these commands duplicated now come from
+`lpu.metrics.ranking`.
 
 `Fusion.forward` called `self.mod_direct` for all three of its views, so
 `mod_sub` and `mod_mult` were built, counted among the parameters and never
@@ -95,8 +192,6 @@ candidate.
 
 `mean` divided by the length of a list that is empty when no query has a
 correct answer.
-
-### Fixed
 
 `lpu_nn.modeling.__all__` listed `match_ranker` and `re2`, which are not
 ported, so `from lpu_nn.modeling import *` raised. Both `__all__` lists now

@@ -1384,7 +1384,8 @@ class Trainer:
     def save_labels(self, path: str) -> None:
         with open(path, 'w', encoding='utf-8') as fobj:
             for label in self.labels:
-                fobj.write(self.vocab.decode(label))
+                # load_labels と対になるよう、ラベル文字列をそのまま書く
+                fobj.write(label)
                 fobj.write("\n")
 
     def save_scores(self, workdir: str, train_report: Any,

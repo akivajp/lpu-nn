@@ -220,7 +220,8 @@ def train_tokenizer(model_prefix: str, train_files: "str | Iterable[str]",
     force_coverage: bool = False,
     min_count: int = DEFAULT_MIN_COUNT, cover_segments: "str | None" = None,
     normalize: bool = False,
-    hard_vocab_limit: bool = False) -> str:
+    hard_vocab_limit: bool = False,
+    user_defined_symbols: "Iterable[str] | None" = None) -> str:
     spm_force_coverage = force_coverage
     # 引数はパス、読み込み後はセグメントの集合になるため別の名前で持つ
     coverage: set[bytes] | None = None
@@ -259,6 +260,17 @@ def train_tokenizer(model_prefix: str, train_files: "str | Iterable[str]",
         cover_segments = coverage,
     )
     args = []
+    # BERT の <cls> / <sep> / <mask> のように、コーパスには現れないが
+    # 語彙に必要な記号を SentencePiece 側へ登録する。指定しないと
+    # piece_to_id() が unk を返し、語彙の構築が失敗する。
+    if user_defined_symbols:
+        symbols = list(user_defined_symbols)
+        for symbol in symbols:
+            if ',' in symbol:
+                # SentencePiece の引数はカンマ区切りのため分割できない
+                raise ValueError(f"symbol must not contain a comma: {symbol}")
+        if symbols:
+            args.append('--user_defined_symbols={}'.format(str.join(',', symbols)))
     args.append(f'--model_prefix={model_prefix}')
     args.append(f'--input={temp.name}')
     args.append(f'--vocab_size={vocab_size}')

@@ -13,6 +13,17 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
 
 ### 追加
 
+- 同じコードベースの BERT 部分。マスク言語モデルと次文予測による
+  事前学習と、分類・ペアランキングへのファインチューニングを、
+  `lpu-nn-train-bert`、`lpu-nn-train-bert-classifier` /
+  `lpu-nn-run-bert-classifier`、`lpu-nn-train-bert-ranker` /
+  `lpu-nn-run-bert-ranker` として提供する。
+- `train_tokenizer` に `user_defined_symbols` を追加し、
+  `FieldMap.train` がトレーナーの特殊記号を渡すようにした。これが無いと
+  タスクが宣言した記号 (BERT の `<cls>` / `<sep>` / `<mask>`) が
+  SentencePiece の語彙に入らず、語彙の構築に失敗する。
+- BERT を 1 エポック事前学習し、そのチェックポイントから分類器を
+  ファインチューニングして分類まで通す CI スモークテスト。
 - 同じコードベースの系列マッチング・ランキング部分。RE2
   ([Yang+ 2019](https://aclanthology.org/P19-1465/)) と Compare-Aggregate
   ([Wang & Jiang 2017](https://arxiv.org/abs/1611.01747)) の 2 方式、
@@ -22,9 +33,6 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
   MRR・MAP・平均順位・再現率@k を報告する。
 - マッチングランカーを 1 エポック訓練し、書き出したチェックポイントで
   開発セットを採点する CI スモークテスト。
-
-### 追加
-
 - 2019-2020 年に書かれた非公開の研究コードのうち、系列変換 (seq2seq) 経路を
   PyTorch 2.x / Python 3.13 へ移植しました。訓練ループ、データセット、
   SentencePiece 語彙、Transformer / Universal Transformer / LSTM の各モジュール、
@@ -34,6 +42,96 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
   ものを用います。これにより約 1,900 行の重複コードが不要になりました。
 
 ### 修正
+
+`--pre-trained-model` が語彙の一致を確認せずに `mod_bert` をまるごと
+差し替えていた。作業ディレクトリごとにトークナイザを学習するため通常は
+一致せず、ファインチューニング後のチェックポイントは、自身が記録した
+語彙サイズと食い違う埋め込みを持って書き出されていた。読み直すと
+サイズ不一致で失敗する。`--sentencepiece` で事前学習側のトークナイザを
+指していない限り、起動を拒否するようにした。
+
+ファインチューニング 2 コマンドの `create_parser` が、モデル名のみを
+取る `staticmethod` だった。基底と `train_bert` は既定値も受け取る
+classmethod である。`main` はパーサを 2 回構築し、`--help` を表示する
+2 回目は既定値を渡すため、どちらのコマンドもヘルプを表示できなかった。
+
+`modeling/bert_classifier.py` と `modeling/bert_ranker.py` が、
+`modeling` の旧称である `modules` を import していた。改名以降
+どちらも import できず、分類器とランカーは、それらの上に立つ
+2 つのトレーナーと 2 つの採点コマンドごと到達不能だった。
+
+`Bert` はトークン埋め込みとセグメント埋め込みを生の `nn.Embedding` で
+構築し、`padding_idx` に語彙のパディング ID を渡していた。
+SentencePiece はパディング記号を持たず `-1` を返すため、
+全バッチのパディング位置が埋め込みを `-1` で参照し、
+"index out of range in self" で学習が止まっていた。どちらも
+まさにこの状況のために書かれた `modeling.embeddings.Embedding`
+(参照前に有効な添字へ差し替える) を使うようにした。
+
+`Bert` が `UniversalTransformer` を `modeling.transformer` から
+引いていたが、分割以降 `modeling.universal_transformer` にあるため、
+`--universal` は構築時に `AttributeError` になっていた。
+
+`BertRanker.forward` はセグメント情報を `segment_id_seq` という名前で
+渡していたが、`Bert.forward` が読むのは `segment_info` である。
+値は `**features` に吸い込まれて黙って捨てられており、ランカーは
+各トークンが 2 系列のどちらに属するかをモデルに伝えていなかった。
+
+`BertClassifier.__init__` は第 1 引数を `vocab` として受け取り
+`vocab.pad` を引いていたが、実際に渡るのはフィールド対応表であり、
+構築時に `AttributeError` になっていた。
+
+BERT の 3 つのトレーナーの `feed_one_batch` と `evaluate` が、
+基底トレーナーに `df` / `feed_batches` / `report` が加わる前の署名の
+ままだった。生じる `TypeError` は訓練ループの `except` に捕まるため、
+実行は成功と報告されながら 1 件も学習していなかった。
+
+`BertClassifierTrainer` と `BertRankerTrainer` が、`main` が渡す
+`args` を受け取らない `__init__` を上書きしており、構築できなかった。
+
+ファインチューニングの 2 コマンドが `--pre` と `-P` を
+`--pre-trained-model` の別名に登録していたが、基底パーサが既に
+`--preset` で使っている。`argparse` はパーサ構築時に衝突を拒否するため、
+どちらのコマンドも `--help` すら出せなかった。
+
+`Trainer.save_labels` が `self.vocab.decode(label)` を呼んでいた。
+`load_labels` はラベルを文字列として保持するよう変更されており、
+`self.vocab` 自体も存在しないため、ラベルを扱うタスクは
+すべて初期化時に失敗していた。
+
+分類器とランカーが、`self.idmaps['seq']` に置き換えられた
+`self.vocab` を 4 箇所で参照したままだった。
+
+`train_bert` が `rest_acc` だけテンソルのまま report に入れていた
+(他の項目はすべて `float()` を通している) ため、pandas が report の
+平均を取れず、さらに自動微分グラフがエポック中保持されていた。
+
+`train_bert_classifier` が予測のリストを `df.at` で代入していた。
+`.at` は単一ラベル専用であり、索引の配列は受け取れない。
+
+`training.infomain` と `training.comm_main` は移植時に落とされた
+複数プロセス対応の残骸で、どちらも存在しない。前者は
+ファインチューニングの 2 コマンドから、後者は `--schedule-num-steps`
+から到達していた。同じ分岐はさらに `self.model.max_steps` を読むが、
+設定に `model.max_steps` が無ければ `set_max_steps` は代入しない。
+
+`run_bert_ranker` の `--replies` 分岐は、基底クラスの
+`Trainer.load_status` を未束縛で呼び、既に受け取らなくなった
+`model_path` を渡し、候補を存在しない `sent2idvec` で符号化していた。
+採点ループは import されていない chainer 由来の `xp` と `F` を参照し、
+分類器側のループは予測を `dprint` で書いていたため、仮に動いたとしても
+標準出力には何も出なかった。
+
+`run_bert_classifier --ranking` は、正解ラベルをラベル文字列と
+突き合わせる前にトークン ID へ符号化していた。順位が 1 件も得られず、
+指標計算がゼロ除算になっていた。
+
+採点コマンド 2 つが `logging.using_config(...)` を変数に代入するだけで
+文脈に入れておらず `--debug` が効かなかった。対象もパッケージ名ではなく
+`logger` オブジェクトを渡していた。
+
+これらのコマンドが重複実装していた 4 つのランキング指標は
+`lpu.metrics.ranking` から取るようにした。
 
 `Fusion.forward` が 3 つの特徴すべてに `self.mod_direct` を使っており、
 `mod_sub` と `mod_mult` は構築されパラメータとして数えられながら、
@@ -88,8 +186,6 @@ dict から 3 要素を取り出そうとし、さらに dict のキーにでき
 
 `mean` が、正解を含む問い合わせが 1 件も無いときに空リストの長さで
 割っていた。
-
-### 修正
 
 `lpu_nn.modeling.__all__` に未移植の `match_ranker` と `re2` が残っており、
 `from lpu_nn.modeling import *` が失敗していました。両パッケージの

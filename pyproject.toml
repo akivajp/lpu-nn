@@ -67,6 +67,11 @@ lpu-nn-train-seq2seq = "lpu_nn.commands.train_seq2seq:main"
 lpu-nn-run-seq2seq = "lpu_nn.commands.run_seq2seq:main"
 lpu-nn-train-match-ranker = "lpu_nn.commands.train_match_ranker:main"
 lpu-nn-run-match-ranker = "lpu_nn.commands.run_match_ranker:main"
+lpu-nn-train-bert = "lpu_nn.commands.train_bert:main"
+lpu-nn-train-bert-classifier = "lpu_nn.commands.train_bert_classifier:main"
+lpu-nn-run-bert-classifier = "lpu_nn.commands.run_bert_classifier:main"
+lpu-nn-train-bert-ranker = "lpu_nn.commands.train_bert_ranker:main"
+lpu-nn-run-bert-ranker = "lpu_nn.commands.run_bert_ranker:main"
 
 [dependency-groups]
 dev = [
@@ -123,6 +128,9 @@ files = [
     "lpu_nn/common/vocab.py",
     "lpu_nn/modeling/activation.py",
     "lpu_nn/modeling/attention.py",
+    "lpu_nn/modeling/bert.py",
+    "lpu_nn/modeling/bert_classifier.py",
+    "lpu_nn/modeling/bert_ranker.py",
     "lpu_nn/modeling/compare_aggregate.py",
     "lpu_nn/modeling/convolution.py",
     "lpu_nn/modeling/embeddings.py",
