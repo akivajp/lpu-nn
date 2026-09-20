@@ -1,0 +1,20 @@
+two two	B-EVEN I-EVEN
+three five five ten	O O O B-EVEN
+ten one ten	B-EVEN O B-EVEN
+seven seven nine	O O O
+nine eight nine five	O B-EVEN O O
+one six	O B-EVEN
+six seven seven nine three	B-EVEN O O O O
+four four one	B-EVEN I-EVEN O
+six three three	B-EVEN O O
+nine nine three eight	O O O B-EVEN
+nine six ten six six	O B-EVEN I-EVEN I-EVEN I-EVEN
+three seven eight nine four	O O B-EVEN O B-EVEN
+five eight nine nine six	O B-EVEN O O B-EVEN
+eight six ten nine eight	B-EVEN I-EVEN I-EVEN O B-EVEN
+four six three ten five	B-EVEN I-EVEN O B-EVEN O
+five five nine nine nine	O O O O O
+five four eight nine six	O B-EVEN I-EVEN O B-EVEN
+six one	B-EVEN O
+two one ten	B-EVEN O B-EVEN
+five ten	O B-EVEN

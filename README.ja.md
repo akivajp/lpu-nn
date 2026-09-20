@@ -20,8 +20,10 @@ PyTorch 2.x / Python 3.13 上で現在一通り動作するのは以下です。
 - BERT の事前学習 (`lpu-nn-train-bert`) と、分類
   (`lpu-nn-train-bert-classifier`)・ペアランキング
   (`lpu-nn-train-bert-ranker`) へのファインチューニング
+- 系列タギング (`lpu-nn-train-tagger`)。BiLSTM / Transformer / BERT の
+  符号化器と、線形 / CRF の復号器に対応
 
-元コードに含まれる系列タギングと言語モデリングの各部分は未移植です。
+元コードに含まれる言語モデリングの部分は未移植です。
 
 ## 動作要件
 
@@ -129,6 +131,22 @@ $ lpu-nn-run-bert-classifier workdir/record.best_dev_acc < sentences.txt
 `文1|||文2` を読んでスコアを 1 行 1 件で出力し、`--replies` を付けると
 候補ファイル全体を各問い合わせに対して順位付けします。
 
+### 系列タギング
+
+タガーは「文 + トークン毎のタグ」の TSV ファイルを受け取ります。
+タグは BIO 方式 (`O`, `B-ラベル`, `I-ラベル`) です。
+
+```shell
+$ lpu-nn-train-tagger workdir tag-train.tsv --dev-files tag-dev.tsv --gpu 0
+```
+
+`--encoder-type` で `lstm` (既定で双方向)・`transformer`・`bert` を、
+`--decoder-type` で `linear`・`crf` を選びます。`bert` を使う場合は、
+他のファインチューニングコマンドと同様に `--pre-trained-model` と
+`--sentencepiece` を指定します。評価のたびにタグ付けした開発セットを
+`record.latest/pred_dev.txt` へ書き出し、固有表現の適合率・再現率・F1 を
+(ラベル一致あり / 境界のみ の 2 通りで) 報告します。
+
 いずれのコマンドも `--help` で全オプションを確認できます。
 
 ## 構成
@@ -136,7 +154,7 @@ $ lpu-nn-run-bert-classifier workdir/record.best_dev_acc < sentences.txt
 | モジュール | 内容 |
 | --- | --- |
 | `lpu_nn.common` | 訓練ループ、データセット、語彙、評価基準 |
-| `lpu_nn.modeling` | Transformer, Universal Transformer, LSTM, 注意機構, 埋め込み, RE2, Compare-Aggregate, BERT |
+| `lpu_nn.modeling` | Transformer, Universal Transformer, LSTM, 注意機構, 埋め込み, RE2, Compare-Aggregate, BERT, CRF |
 | `lpu_nn.optimizers` | AdaBound, LAMB と、訓練で用いる torch の最適化器 |
 | `lpu_nn.commands` | コマンドラインのエントリポイント |
 

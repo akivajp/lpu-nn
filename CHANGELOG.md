@@ -13,6 +13,11 @@
 
 ### Added
 
+- The sequence tagging path of the same codebase: the CRF, the
+  `SequenceTagger` over a BiLSTM, a transformer or a BERT encoder, and the
+  `lpu-nn-train-tagger` command, which reports entity precision, recall and
+  F1 and writes the tagged development set beside the checkpoint.
+- A CI smoke test that trains the tagger for one epoch with a CRF decoder.
 - The BERT path of the same codebase: pre-training with a masked language
   model and next-sentence prediction, and fine-tuning for classification and
   for pair ranking, as `lpu-nn-train-bert`,
@@ -44,6 +49,83 @@
   about 1,900 lines of duplicated code.
 
 ### Fixed
+
+`modeling/sequence_tagger.py` declared its classes against `modules`, the
+name `modeling` was renamed from, so it could not be imported at all, taking
+`train_tagger` with it.
+
+`SequenceTagger.prepare_batch` had both of the lines that build the batch
+commented out, so every encoder other than BERT raised `UnboundLocalError`.
+The batch keeps the ids as they are: `encode_pair` has already aligned the
+sequence with its tags one to one, and adding symbols here would break that.
+
+`SequenceTagger.prepare_features` supplied only its own features, while each
+encoder declares its own mandatory ones (the LSTM encoder requires
+`mask_mem`). It delegates to the encoder now, and drops `id_seq`, which the
+sequence is already passed as a positional argument and which nothing reads.
+
+`transformer.Encoder` and `transformer.Decoder` built their token embedding
+with `padding_idx=`, but the parameter is called `padding`: it landed in
+`**kwargs` and was ignored, so the transformer never masked its padding.
+With a negative pad id the lookup raised, and with a non-negative one the
+padded positions got a learned vector and accumulated gradients.
+
+The CRF read the tag map's padding id while the tag tensor is padded with
+the sequence vocabulary's, which SentencePiece reports as -1, so `gather`
+raised. It now takes the valid positions from the mask, holds its forward
+scores across padding rather than accumulating over it, and normalizes by
+the real lengths instead of the padded width.
+
+The mask handed to the CRF came from the input sequence. Under the BERT
+encoder that sequence carries a leading `<cls>`, so it is one longer than
+the tags and the mask was off by one. It is derived from the tags now.
+
+`SequenceTagger.decode` called the model without the features it had just
+prepared, so the BERT encoder decoded without the segment information it was
+trained with.
+
+`SequenceTagger` built its BERT fine-tuning layer as
+`transformer.Transformer(idmaps, ...)`, but that constructor's first
+parameter is `conditioned`, a flag. The field map was read as a truthy value
+and the layer was built in the conditioned (cross-attention) mode. On the
+smoke corpus, fixing it lifts the tagger's F1 from 0.19 to 0.30.
+
+`CRF` and `SequenceTagger` created `last_state` only in `reset_state`, so a
+freshly constructed model raised `AttributeError`.
+
+`criteria.cross_entropy` could not take a negative padding id in the list
+form of `ignore_index`: torch validates the targets before the mask is
+applied. The ignored positions are pointed at a valid index first.
+
+`pair2tag` and `extract_tags` folded `<unk>` onto a head that the BIO scheme
+understands, but left the other symbols of the tag map alone. Because they
+split a tag as `tag[0:1]` and `tag[2:]`, a predicted `<pad>` became the tag
+`<ad>>` in the output.
+
+The predictions were passed through `clean_ids` before being paired with the
+tokens. Removing a symbol shortens the sequence, `zip` stops at the shorter
+one, and the tail of the sentence was dropped from both the written output
+and the entity counts.
+
+The tagger wrote its predictions into `record.latest`, which the first
+evaluation reaches before any checkpoint has been written, and opened the
+file in the platform's default encoding.
+
+`FieldMap.set_symbols` applied the extra symbols to every map. On a tag map
+that both adds the symbols as tags, inflating the classifier's output, and
+overwrites `IDMap.sep`, which is the string a field is split on, so that
+map's `encode` and `decode` raise `TypeError`. They go to the sequence
+vocabularies only.
+
+`train_tagger` carried the same `--pre` / `-P` conflict with `--preset`, the
+same `feed_one_batch` and `evaluate` signatures from before the base trainer
+gained its extra parameters, and the same `training.comm_main` that the port
+dropped.
+
+`SequenceTagger.forward` held a branch that added an autoregressive tag
+transition. None of the three modules it used is created anywhere, and it
+referenced `t`, which is not one of `forward`'s parameters, so it could only
+have raised. It has been removed.
 
 `--pre-trained-model` replaced the whole `mod_bert` without checking that
 the two vocabularies match. Each work directory trains its own tokenizer, so

@@ -71,6 +71,7 @@ jobs:
           lpu-nn-run-bert-classifier --help > /dev/null
           lpu-nn-train-bert-ranker --help > /dev/null
           lpu-nn-run-bert-ranker --help > /dev/null
+          lpu-nn-train-tagger --help > /dev/null
 
   smoke:
     name: train and decode (CPU)
@@ -148,6 +149,24 @@ jobs:
           cut -f1 tests/data/class-dev.tsv | head -5 \
             | python -m lpu_nn.commands.run_bert_classifier \
                 runs/ci-bert-cls/record.best_dev_acc
+      # Sequence tagging, over the encoder that is not exercised above:
+      # a BiLSTM with a CRF decoder. The corpus is the seq2seq one turned
+      # into BIO tags.
+      # (系列タギング。上で通っていない符号化器 (BiLSTM) と CRF 復号器を
+      #  通す。コーパスは seq2seq のものを BIO タグに組み替えたもの)
+      - name: Train the tagger for one epoch
+        run: |
+          python -m lpu_nn.commands.train_tagger runs/ci-tag \
+            tests/data/tag-train.tsv \
+            --dev-files tests/data/tag-dev.tsv \
+            --num-epochs 1 --batch-size 8 --vocab-size 100 \
+            --embed-size 32 --hidden-size 32 --gpu -1 \
+            --encoder-type lstm --decoder-type crf \
+            --logging runs/ci-tag.log
+      - name: The tagger wrote its predictions
+        run: |
+          test -f runs/ci-tag/record.best_dev_f1/model.pt
+          test -s runs/ci-tag/record.latest/pred_dev.txt
       - name: Nothing was written into the working directory
         run: |
           test ! -e TMP.txt
@@ -161,4 +180,5 @@ jobs:
             runs/ci-match-train.log
             runs/ci-bert.log
             runs/ci-bert-cls.log
+            runs/ci-tag.log
           if-no-files-found: warn

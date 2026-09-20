@@ -387,9 +387,22 @@ class FieldMap:
         return all_seq_tokens , all_tag_tokens
 
     def set_symbols(self, extra_symbols: Mapping[str, str]) -> "FieldMap":
+        """Register the extra symbols on the sequence vocabularies
+
+        追加記号を系列語彙にのみ登録する。
+
+        追加記号 (BERT の <cls> / <sep> / <mask> など) は部分語の語彙に
+        属するものであり、タグ表のような IDMap に適用すると 2 つの害がある。
+        1 つはタグ一覧に無関係な記号が増え、分類器の出力クラスが水増し
+        されること。もう 1 つは 'sep' のように IDMap が別の用途で使って
+        いる属性 (フィールドをトークンに分割する文字列) を上書きし、
+        その語彙の encode / decode が TypeError になることである。
+        """
         for key, idmap in self.dict_maps.items():
             dprint(key)
             dprint(idmap)
+            if not isinstance(idmap, Vocabulary):
+                continue
             idmap.set_symbols(extra_symbols)
         return self
 

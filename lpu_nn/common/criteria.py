@@ -51,7 +51,11 @@ def cross_entropy(h: torch.Tensor, t: torch.Tensor, ignore_index: "int | list[in
             t_valid = (t == t) # (B, L)
             for ignore in ignore_index:
                 t_valid = t_valid & (t != ignore)
-            element_wise_entropy = nn.functional.cross_entropy(h, t, reduction='none', **kwargs)
+            # 無視する位置にはパディング由来の負の添字が入りうる。torch は
+            # 範囲外の添字を計算前に検査して落ちるため、有効な添字へ
+            # 差し替えてから渡す (その位置の値は直後に 0 で潰す)
+            t_safe = torch.where(t_valid, t, torch.zeros_like(t))
+            element_wise_entropy = nn.functional.cross_entropy(h, t_safe, reduction='none', **kwargs)
             # torch 側に無視指定を渡せないため、マスクした位置を自前で 0 にする
             element_wise_entropy = purge_tensor(element_wise_entropy, t_valid, 0.0)
         else:

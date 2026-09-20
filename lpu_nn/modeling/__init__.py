@@ -28,6 +28,7 @@ __all__ = [
     'pooling',
     're2',
     'sequence_matcher',
+    'sequence_tagger',
     'transformer',
     'universal_transformer',
 ]

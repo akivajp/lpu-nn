@@ -13,6 +13,11 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
 
 ### 追加
 
+- 同じコードベースの系列タギング部分。CRF、BiLSTM / Transformer / BERT の
+  各符号化器に載る `SequenceTagger`、そして固有表現の適合率・再現率・F1 を
+  報告し、タグ付けした開発セットをチェックポイントの隣に書き出す
+  `lpu-nn-train-tagger` コマンド。
+- CRF 復号器でタガーを 1 エポック訓練する CI スモークテスト。
 - 同じコードベースの BERT 部分。マスク言語モデルと次文予測による
   事前学習と、分類・ペアランキングへのファインチューニングを、
   `lpu-nn-train-bert`、`lpu-nn-train-bert-classifier` /
@@ -42,6 +47,79 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
   ものを用います。これにより約 1,900 行の重複コードが不要になりました。
 
 ### 修正
+
+`modeling/sequence_tagger.py` が、`modeling` の旧称である `modules` を
+基底クラスに使っており、そもそも import できなかった。`train_tagger` も
+道連れになっていた。
+
+`SequenceTagger.prepare_batch` はバッチを作る行が両方ともコメントアウト
+されており、BERT 以外の符号化器はすべて `UnboundLocalError` になった。
+`encode_pair` が系列とタグを 1:1 に対応付けて ID 化済みのため、ここで
+特殊記号を足すと対応が崩れる。ID をそのまま使う形に直した。
+
+`SequenceTagger.prepare_features` は自前の特徴しか用意していなかったが、
+必須の特徴は符号化器ごとに異なる (LSTM 符号化器は `mask_mem` を必須と
+する)。符号化器へ委譲するようにし、系列を位置引数で渡すため重複する
+`id_seq` (どこからも読まれない) は落とすようにした。
+
+`transformer.Encoder` と `transformer.Decoder` がトークン埋め込みを
+`padding_idx=` で構築していたが、引数名は `padding` である。`**kwargs` に
+落ちて無視されるため、Transformer はパディングを一度もマスクしていな
+かった。負のパディング ID では参照が落ち、非負でもパディング位置に
+学習済みベクトルが乗って勾配が溜まっていた。
+
+CRF はタグ表のパディング ID を見ていたが、タグ列は系列語彙のパディング
+(SentencePiece では -1) で埋められるため `gather` が落ちていた。有効位置を
+マスクから取り、パディング位置では前向きスコアを更新せず、正規化も
+パディング込みの幅ではなく実長で行うようにした。
+
+CRF に渡すマスクを入力系列から作っていた。BERT 符号化器では先頭に
+`<cls>` が付いてタグ列より 1 つ長いため、マスクが 1 つずれていた。
+タグ列から作るようにした。
+
+`SequenceTagger.decode` が、直前に用意した特徴を渡さずにモデルを呼んで
+いた。BERT 符号化器は学習時と異なりセグメント情報なしで復号していた。
+
+`SequenceTagger` が BERT 用の微調整層を
+`transformer.Transformer(idmaps, ...)` として構築していたが、この
+コンストラクタの第 1 引数は真偽値の `conditioned` である。フィールド
+対応表が真値として解釈され、条件付き (cross-attention) モードで
+構築されていた。スモーク用コーパスでは、修正によりタガーの F1 が
+0.19 から 0.30 に上がる。
+
+`CRF` と `SequenceTagger` が `last_state` を `reset_state` でしか作らず、
+構築直後のモデルは `AttributeError` になった。
+
+`criteria.cross_entropy` は、リスト形式の `ignore_index` で負のパディング
+ID を扱えなかった。torch はマスクを適用する前に目標値を検査するため、
+無視する位置を先に有効な添字へ向けるようにした。
+
+`pair2tag` と `extract_tags` は `<unk>` だけを BIO 方式が解釈できる形に
+潰し、タグ表の他の記号は素通しだった。タグを `tag[0:1]` と `tag[2:]` に
+切り分けるため、予測された `<pad>` は出力では `<ad>>` というタグになって
+いた。
+
+予測をトークンと対にする前に `clean_ids` へ通していた。記号を取り除くと
+列が縮み、`zip` が短い方で止まるため、文末が出力からも固有表現の集計からも
+落ちていた。
+
+タガーは予測を `record.latest` に書いていたが、最初の評価はチェック
+ポイントが書かれる前に走る。ファイルの符号化も環境依存のままだった。
+
+`FieldMap.set_symbols` が追加記号をすべてのマップに適用していた。タグ表に
+対しては、記号がタグとして加わって分類器の出力が水増しされるうえ、
+フィールドを分割する文字列である `IDMap.sep` を上書きし、その語彙の
+`encode` と `decode` が `TypeError` になる。系列語彙にのみ適用するように
+した。
+
+`train_tagger` にも、`--preset` と衝突する `--pre` / `-P`、基底トレーナーが
+引数を増やす前の `feed_one_batch` と `evaluate` の署名、移植時に落とされた
+`training.comm_main` が同じように残っていた。
+
+`SequenceTagger.forward` に、タグの自己回帰遷移を加える分岐があった。
+使っている 3 つのモジュールはいずれもどこでも生成されておらず、参照して
+いた `t` は `forward` の引数ですらないため、実行されれば必ず例外になる
+未完成のコードだった。削除した。
 
 `--pre-trained-model` が語彙の一致を確認せずに `mod_bert` をまるごと
 差し替えていた。作業ディレクトリごとにトークナイザを学習するため通常は

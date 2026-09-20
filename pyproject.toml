@@ -72,6 +72,7 @@ lpu-nn-train-bert-classifier = "lpu_nn.commands.train_bert_classifier:main"
 lpu-nn-run-bert-classifier = "lpu_nn.commands.run_bert_classifier:main"
 lpu-nn-train-bert-ranker = "lpu_nn.commands.train_bert_ranker:main"
 lpu-nn-run-bert-ranker = "lpu_nn.commands.run_bert_ranker:main"
+lpu-nn-train-tagger = "lpu_nn.commands.train_tagger:main"
 
 [dependency-groups]
 dev = [
@@ -140,6 +141,7 @@ files = [
     "lpu_nn/modeling/module.py",
     "lpu_nn/modeling/pooling.py",
     "lpu_nn/modeling/re2.py",
+    "lpu_nn/modeling/sequence_tagger.py",
     "lpu_nn/modeling/sequence_matcher.py",
     "lpu_nn/modeling/transformer.py",
     "lpu_nn/modeling/universal_transformer.py",

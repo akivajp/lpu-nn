@@ -1,0 +1,200 @@
+ten two five	B-EVEN I-EVEN O
+eight eight	B-EVEN I-EVEN
+seven four two eight one	O B-EVEN I-EVEN I-EVEN O
+seven ten one eight five	O B-EVEN O B-EVEN O
+ten two six	B-EVEN I-EVEN I-EVEN
+one one	O O
+seven four	O B-EVEN
+one nine four eight eight	O O B-EVEN I-EVEN I-EVEN
+six four four	B-EVEN I-EVEN I-EVEN
+five one seven nine two	O O O O B-EVEN
+five two six	O B-EVEN I-EVEN
+nine four five five ten	O B-EVEN O O B-EVEN
+nine seven ten one eight	O O B-EVEN O B-EVEN
+seven seven three	O O O
+nine six two eight	O B-EVEN I-EVEN I-EVEN
+three nine	O O
+six eight one eight one	B-EVEN I-EVEN O B-EVEN O
+ten ten ten seven	B-EVEN I-EVEN I-EVEN O
+three nine four	O O B-EVEN
+four nine	B-EVEN O
+seven nine six	O O B-EVEN
+eight five nine ten	B-EVEN O O B-EVEN
+seven nine	O O
+nine nine four	O O B-EVEN
+one eight six ten nine	O B-EVEN I-EVEN I-EVEN O
+nine seven eight	O O B-EVEN
+seven six one nine	O B-EVEN O O
+eight ten one four	B-EVEN I-EVEN O B-EVEN
+nine ten three	O B-EVEN O
+nine five	O O
+two two	B-EVEN I-EVEN
+eight one	B-EVEN O
+four five two ten	B-EVEN O B-EVEN I-EVEN
+six five two	B-EVEN O B-EVEN
+three five nine	O O O
+five five eight	O O B-EVEN
+eight eight two one	B-EVEN I-EVEN I-EVEN O
+seven six seven four	O B-EVEN O B-EVEN
+two five nine four	B-EVEN O O B-EVEN
+one four one seven three	O B-EVEN O O O
+three eight	O B-EVEN
+nine four nine eight four	O B-EVEN O B-EVEN I-EVEN
+seven ten	O B-EVEN
+seven one five three	O O O O
+one five two	O O B-EVEN
+five five	O O
+seven ten five	O B-EVEN O
+one nine one	O O O
+ten eight three	B-EVEN I-EVEN O
+seven four	O B-EVEN
+two four ten seven	B-EVEN I-EVEN I-EVEN O
+eight two seven	B-EVEN I-EVEN O
+nine eight one six	O B-EVEN O B-EVEN
+five one three four six	O O O B-EVEN I-EVEN
+six seven four	B-EVEN O B-EVEN
+two seven nine six	B-EVEN O O B-EVEN
+nine four two one two	O B-EVEN I-EVEN O B-EVEN
+three three nine	O O O
+five six ten	O B-EVEN I-EVEN
+six six six two	B-EVEN I-EVEN I-EVEN I-EVEN
+four ten eight three	B-EVEN I-EVEN I-EVEN O
+six one	B-EVEN O
+two seven three three six	B-EVEN O O O B-EVEN
+ten ten	B-EVEN I-EVEN
+two ten nine four ten	B-EVEN I-EVEN O B-EVEN I-EVEN
+five six	O B-EVEN
+ten nine two eight	B-EVEN O B-EVEN I-EVEN
+two one five one	B-EVEN O O O
+two seven	B-EVEN O
+one four	O B-EVEN
+ten seven three	B-EVEN O O
+eight three	B-EVEN O
+three two seven	O B-EVEN O
+nine five nine five eight	O O O O B-EVEN
+two four six one	B-EVEN I-EVEN I-EVEN O
+one five	O O
+eight seven six seven	B-EVEN O B-EVEN O
+two six	B-EVEN I-EVEN
+two five four ten nine	B-EVEN O B-EVEN I-EVEN O
+six five three nine four	B-EVEN O O O B-EVEN
+four four six two	B-EVEN I-EVEN I-EVEN I-EVEN
+two eight two ten	B-EVEN I-EVEN I-EVEN I-EVEN
+four seven five one	B-EVEN O O O
+three six ten five	O B-EVEN I-EVEN O
+six two nine	B-EVEN I-EVEN O
+four four	B-EVEN I-EVEN
+four seven	B-EVEN O
+five nine	O O
+two one	B-EVEN O
+five six	O B-EVEN
+eight three two nine six	B-EVEN O B-EVEN O B-EVEN
+nine three	O O
+three three six	O O B-EVEN
+two nine ten five	B-EVEN O B-EVEN O
+four three nine	B-EVEN O O
+six ten	B-EVEN I-EVEN
+three five seven	O O O
+one four five	O B-EVEN O
+eight seven	B-EVEN O
+nine eight nine eight	O B-EVEN O B-EVEN
+seven six	O B-EVEN
+five eight one	O B-EVEN O
+ten one one six ten	B-EVEN O O B-EVEN I-EVEN
+ten three three	B-EVEN O O
+five seven ten seven	O O B-EVEN O
+ten two four	B-EVEN I-EVEN I-EVEN
+one three nine six nine	O O O B-EVEN O
+four four six eight eight	B-EVEN I-EVEN I-EVEN I-EVEN I-EVEN
+seven six nine	O B-EVEN O
+four one two nine	B-EVEN O B-EVEN O
+three nine four five	O O B-EVEN O
+five nine six three	O O B-EVEN O
+ten two two ten nine	B-EVEN I-EVEN I-EVEN I-EVEN O
+three three five seven four	O O O O B-EVEN
+eight seven	B-EVEN O
+seven nine three nine	O O O O
+nine two	O B-EVEN
+two five two three	B-EVEN O B-EVEN O
+eight four	B-EVEN I-EVEN
+seven seven three six eight	O O O B-EVEN I-EVEN
+ten eight four	B-EVEN I-EVEN I-EVEN
+seven ten	O B-EVEN
+two five five four seven	B-EVEN O O B-EVEN O
+four nine	B-EVEN O
+ten one one ten four	B-EVEN O O B-EVEN I-EVEN
+four three five three	B-EVEN O O O
+five five ten	O O B-EVEN
+eight three nine six	B-EVEN O O B-EVEN
+seven two four ten seven	O B-EVEN I-EVEN I-EVEN O
+five two one	O B-EVEN O
+ten one	B-EVEN O
+three two nine six	O B-EVEN O B-EVEN
+seven nine six nine	O O B-EVEN O
+one two eight eight	O B-EVEN I-EVEN I-EVEN
+five nine seven six	O O O B-EVEN
+two seven seven four nine	B-EVEN O O B-EVEN O
+five ten	O B-EVEN
+eight ten nine	B-EVEN I-EVEN O
+five three eight ten nine	O O B-EVEN I-EVEN O
+six nine one	B-EVEN O O
+ten seven seven six ten	B-EVEN O O B-EVEN I-EVEN
+eight four	B-EVEN I-EVEN
+one seven three seven	O O O O
+three two ten one	O B-EVEN I-EVEN O
+five seven nine five	O O O O
+eight five eight	B-EVEN O B-EVEN
+eight nine one	B-EVEN O O
+nine two ten seven	O B-EVEN I-EVEN O
+six two	B-EVEN I-EVEN
+one three nine three two	O O O O B-EVEN
+five ten five four nine	O B-EVEN O B-EVEN O
+four six five	B-EVEN I-EVEN O
+two nine	B-EVEN O
+eight nine nine one	B-EVEN O O O
+five nine five	O O O
+ten four seven nine	B-EVEN I-EVEN O O
+three eight five ten six	O B-EVEN O B-EVEN I-EVEN
+five ten four	O B-EVEN I-EVEN
+ten seven	B-EVEN O
+seven four five four	O B-EVEN O B-EVEN
+three ten	O B-EVEN
+ten three ten five eight	B-EVEN O B-EVEN O B-EVEN
+three three eight	O O B-EVEN
+five seven four two	O O B-EVEN I-EVEN
+five two two	O B-EVEN I-EVEN
+seven six eight	O B-EVEN I-EVEN
+three one	O O
+ten one	B-EVEN O
+one eight nine	O B-EVEN O
+six five two ten three	B-EVEN O B-EVEN I-EVEN O
+four seven	B-EVEN O
+eight eight seven	B-EVEN I-EVEN O
+four four five	B-EVEN I-EVEN O
+nine ten seven four eight	O B-EVEN O B-EVEN I-EVEN
+six eight ten two	B-EVEN I-EVEN I-EVEN I-EVEN
+two one one	B-EVEN O O
+eight six	B-EVEN I-EVEN
+ten five four seven three	B-EVEN O B-EVEN O O
+one one seven	O O O
+nine one ten	O O B-EVEN
+five three two eight five	O O B-EVEN I-EVEN O
+one nine	O O
+nine three	O O
+five two	O B-EVEN
+two four one eight three	B-EVEN I-EVEN O B-EVEN O
+four eight seven six	B-EVEN I-EVEN O B-EVEN
+five four four one	O B-EVEN I-EVEN O
+six seven ten	B-EVEN O B-EVEN
+six nine	B-EVEN O
+nine four nine seven two	O B-EVEN O O B-EVEN
+ten two five three	B-EVEN I-EVEN O O
+three one	O O
+seven one one	O O O
+nine eight	O B-EVEN
+two six one three	B-EVEN I-EVEN O O
+eight three	B-EVEN O
+eight one nine five two	B-EVEN O O O B-EVEN
+six two five one	B-EVEN I-EVEN O O
+one five six three five	O O B-EVEN O O
+two five two seven four	B-EVEN O B-EVEN O B-EVEN

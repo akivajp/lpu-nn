@@ -716,7 +716,10 @@ class Encoder(modeling.Module):
             self.mod_transform = MultiStepTransformer(**params)
         if mod_embed_tok is None:
             #self.mod_embed_tok = nn.Embedding(self.vocab_size, self.embed_size, padding_idx=self.padding)
-            self.mod_embed_tok = embeddings.Embedding(self.vocab_size, self.embed_size, padding_idx=self.padding)
+            # embeddings.Embedding の引数名は padding。padding_idx は
+            # **kwargs に落ちて無視され、パディング位置が一度も
+            # マスクされていなかった (負のパディング ID では添字エラー)
+            self.mod_embed_tok = embeddings.Embedding(self.vocab_size, self.embed_size, padding=self.padding)
         else:
             self.mod_embed_tok = mod_embed_tok
         if self.embed_size != self.hidden_size:
@@ -801,7 +804,10 @@ class Decoder(modeling.Module):
             self.mod_transform = MultiStepTransformer(**hparams)
         if mod_embed_tok is None:
             #self.mod_embed_tok = nn.Embedding(self.vocab_size, self.embed_size, padding_idx=self.padding)
-            self.mod_embed_tok = embeddings.Embedding(self.vocab_size, self.embed_size, padding_idx=self.padding)
+            # embeddings.Embedding の引数名は padding。padding_idx は
+            # **kwargs に落ちて無視され、パディング位置が一度も
+            # マスクされていなかった (負のパディング ID では添字エラー)
+            self.mod_embed_tok = embeddings.Embedding(self.vocab_size, self.embed_size, padding=self.padding)
         else:
             self.mod_embed_tok = mod_embed_tok
         if self.embed_size != self.hidden_size:

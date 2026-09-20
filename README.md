@@ -20,9 +20,10 @@ What currently runs end to end on PyTorch 2.x / Python 3.13:
 - BERT pre-training (`lpu-nn-train-bert`) and fine-tuning for classification
   (`lpu-nn-train-bert-classifier`) and pair ranking
   (`lpu-nn-train-bert-ranker`)
+- sequence tagging (`lpu-nn-train-tagger`), over a BiLSTM, a transformer or
+  a BERT encoder, with a linear or a CRF decoder
 
-The sequence tagging and language modeling parts of the original codebase
-are not ported yet.
+The language modeling part of the original codebase is not ported yet.
 
 ## Requirements
 
@@ -128,6 +129,22 @@ known labels. The pair ranker's scorer, `lpu-nn-run-bert-ranker`, reads
 `sentence1|||sentence2` and writes one score per line, or ranks a candidate
 file against each query with `--replies`.
 
+### Sequence tagging
+
+The tagger takes a TSV file of a sentence and one tag per token, in the BIO
+scheme (`O`, `B-LABEL`, `I-LABEL`).
+
+```shell
+$ lpu-nn-train-tagger workdir tag-train.tsv --dev-files tag-dev.tsv --gpu 0
+```
+
+`--encoder-type` selects `lstm` (bidirectional by default), `transformer` or
+`bert`, and `--decoder-type` selects `linear` or `crf`. With `bert`, pass
+`--pre-trained-model` and `--sentencepiece` as for the other fine-tuning
+commands. Each evaluation writes the tagged development set to
+`record.latest/pred_dev.txt` and reports entity precision, recall and F1,
+both with and without matching the labels.
+
 Run any command with `--help` for the full list of options.
 
 ## Layout
@@ -135,7 +152,7 @@ Run any command with `--help` for the full list of options.
 | Module | Contents |
 | --- | --- |
 | `lpu_nn.common` | the trainer, the dataset, the vocabulary, the criteria |
-| `lpu_nn.modeling` | transformer, universal transformer, LSTM, attention, embeddings, RE2, Compare-Aggregate, BERT |
+| `lpu_nn.modeling` | transformer, universal transformer, LSTM, attention, embeddings, RE2, Compare-Aggregate, BERT, CRF |
 | `lpu_nn.optimizers` | AdaBound, LAMB, and the torch optimizers used by the trainer |
 | `lpu_nn.commands` | the command line entry points |
 
