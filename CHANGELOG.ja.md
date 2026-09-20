@@ -4,6 +4,13 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
 
 ## 未リリース
 
+### 変更
+
+- `lpu` への依存を、リポジトリの直接指定から `lpu>=0.6` に変更しました。
+  `IDMap`、`safe_*` 系のファイル補助、`lpu.metrics.ranking` を含む
+  リリースが PyPI に出たためです。PyPI は直接 URL 依存を受け付けないため、
+  この変更が本パッケージを公開可能にする条件でもあります。
+
 ### 追加
 
 - 2019-2020 年に書かれた非公開の研究コードのうち、系列変換 (seq2seq) 経路を

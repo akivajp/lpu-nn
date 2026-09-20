@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+### Changed
+
+- `lpu` is required as `lpu>=0.6` rather than from its repository, now
+  that the release carrying `IDMap`, the `safe_*` file helpers and
+  `lpu.metrics.ranking` is on PyPI. A direct URL dependency is also what
+  PyPI refuses, so this is what makes this package publishable.
+
 ### Added
 
 - The sequence-to-sequence path of a private research codebase written in
