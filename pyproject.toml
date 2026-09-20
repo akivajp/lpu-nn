@@ -125,6 +125,7 @@ files = [
     "lpu_nn/common/dataset.py",
     "lpu_nn/common/initialization.py",
     "lpu_nn/common/tokenizer.py",
+    "lpu_nn/common/training.py",
     "lpu_nn/common/files.py",
     "lpu_nn/common/utils.py",
     "lpu_nn/common/vocab.py",
@@ -155,7 +156,7 @@ strict_equality = true
 #  pandas-stubs として別配布であり、その導入は別途の検査作業になるため、
 #  現時点ではスタブ欠落を許容する)
 [[tool.mypy.overrides]]
-module = ["pandas", "pandas.*", "sentencepiece", "nltk.*"]
+module = ["matplotlib", "matplotlib.*", "pandas", "pandas.*", "sentencepiece", "nltk.*"]
 ignore_missing_imports = true
 
 [tool.setuptools.dynamic]

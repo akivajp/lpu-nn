@@ -262,7 +262,7 @@ def setup_optimizer(config: Any, model: Any) -> Any:
         beta2   = cdata.train.adam_beta2
         eps     = cdata.train.adam_eps
         amsgrad = (optimizer_name == 'amsgrad')
-        optimizer = optimizers.AdaBoundW(param_groups, lr=alpha, final_lr=None, betas=(beta1,beta2), eps=eps, amsbound=amsgrad)
+        optimizer: Any = optimizers.AdaBoundW(param_groups, lr=alpha, final_lr=None, betas=(beta1,beta2), eps=eps, amsbound=amsgrad)
     elif optimizer_name in ['adamax']:
         alpha   = cdata.train.adam_alpha
         beta1   = cdata.train.adam_beta1
@@ -304,7 +304,7 @@ def setup_optimizer(config: Any, model: Any) -> Any:
         optimizer = optimizers.SGD(param_groups, lr=cdata.train.sgd_learning_rate)
     return optimizer
 
-def get_record_name(model_path: str) -> "str | None":
+def get_record_name(model_path: str) -> Any:
     """Extract the record name out of a checkpoint path
 
     チェックポイントのパスから記録名を取り出す。
@@ -375,22 +375,23 @@ class Trainer:
     specific: Any = None
     Model: Any = None
     #def __init__(self):
-    def __init__(self, args=None):
+    def __init__(self, args: Any = None) -> None:
         self.args = args
         self.config = Config(self.default)
         # 構築時には未設定で、後から setup で入る
         self.idmaps: Any = None
+        self.last_loss: Any = None
         self.model: Any = None
         self.optimizer: Any = None
         self.sep = '\t'
         self.update_main_fields()
 
-    def update_main_fields(self):
+    def update_main_fields(self) -> Any:
         self.main_fields = main_fields = self.specific.to_dict('format', flat=True, ordered=True, upstream=True)
         self.len_fields = ['len_'+column for column, ftype in main_fields.items() if ftype == 'seq']
         return self.main_fields
 
-    def build_train_batches(self):
+    def build_train_batches(self) -> Any:
         cdata = self.config.data
         train_df = self.train_df
         method = cdata.train.curriculum
@@ -474,7 +475,8 @@ class Trainer:
         #random.shuffle(self.train_batches)
         return True
 
-    def evaluate(self, tag, df, args, feed_batches=None, report=None):
+    def evaluate(self, tag: str, df: Any, args: Any,
+                 feed_batches: Any = None, report: Any = None) -> Any:
         if report is None:
             eval_report = pd.Series()
         else:
@@ -497,8 +499,8 @@ class Trainer:
             logger.exception(e)
         return eval_report
 
-    def filter_noisy_samples(self):
-        def drop_noise(noisy, based_on):
+    def filter_noisy_samples(self) -> None:
+        def drop_noise(noisy: Any, based_on: Any) -> Any:
             noisy = noisy.sort_values('criterion')
             noisy_repr = repr(noisy[[*self.len_fields, 'cost', 'feed_count', 'last_epoch', 'last_step', 'criterion', 'priority']])
             logger.info(f"noisy training data (based on \"{based_on}\"):\n{noisy_repr}")
@@ -563,14 +565,14 @@ class Trainer:
         #        drop_noise(noisy, 'criterion vs last training step')
         #        trained = self.train_df[self.train_df.last_epoch == cdata.log.epoch]
 
-    def get_config(self, key, val):
+    def get_config(self, key: str, val: Any) -> Any:
         if val is None:
             return default[key]
         else:
             return val
 
     @classmethod
-    def get_extra_symbols(cls):
+    def get_extra_symbols(cls) -> Any:
     #def get_extra_symbols(cls, field_name):
         if 'extra_symbols' in cls.specific:
             extra_symbols = cls.specific.to_dict(key='extra_symbols', ordered=True, upstream=True)
@@ -581,12 +583,12 @@ class Trainer:
             extra_symbols = {}
         return extra_symbols
 
-    def get_num_params(self):
+    def get_num_params(self) -> Any:
         num_params = sum(param.numel() for param in self.model.parameters())
         self.config.data.model.num_params = num_params
         return num_params
 
-    def init_random(self, args):
+    def init_random(self, args: Any) -> None:
         cdata = self.config.data
         if cdata.train.random_seed < 0:
             #cdata.train.random_seed = random.randint(0, 2 ** 16)
@@ -596,7 +598,8 @@ class Trainer:
         torch.manual_seed(cdata.train.random_seed)
         torch.backends.cudnn.deterministic = True
 
-    def link_status(self, basedir, src_record, dist_record, log=True):
+    def link_status(self, basedir: str, src_record: str, dist_record: str,
+                    log: bool = True) -> Any:
         link_filenames = [
             'config.json',
             'model.pt',
@@ -632,11 +635,11 @@ class Trainer:
             else:
                 safe_link(src_path, dist_path, log=log)
 
-    def load_eval_data(self, path):
+    def load_eval_data(self, path: str) -> Any:
         #return load_eval_data(self.main_fields, path, self.vocab, self.sep)
         return load_eval_data(self.main_fields, path, self.sep)
 
-    def load_labels(self, path=None):
+    def load_labels(self, path: "str | None" = None) -> Any:
         self.labels = []
         #self.label2id = {}
         self.label2id = defaultdict(lambda: 0)
@@ -651,7 +654,9 @@ class Trainer:
                     self.label2id[label] = len(self.labels)
                     self.labels.append(label)
         else:
-            df = Dataset(self.main_train_data_path, self.sep).to_df(self.main_fields)
+            # 属性は train_data_path に改名されており、ここだけ旧名が
+            # 残っていた (このため path 未指定の呼び出しは AttributeError)
+            df = Dataset(self.train_data_path, self.sep).to_df(self.main_fields)
             for _i, row in df.iterrows():
                 #ids = row.s2
                 label = row.s2
@@ -659,7 +664,7 @@ class Trainer:
                     self.label2id[label] = len(self.labels)
                     self.labels.append(label)
 
-    def load_model(self, model_path, force=True):
+    def load_model(self, model_path: str, force: bool = True) -> Any:
         logger.info(f"loading model from '{model_path}' ...")
         loaded_state_dict = torch.load(model_path, 'cpu')
         config = Config(self.default)
@@ -699,7 +704,8 @@ class Trainer:
         return config, model
 
     @classmethod
-    def load_optimizer(cls, path, config, model, force=True):
+    def load_optimizer(cls, path: str, config: Any, model: Any,
+                       force: bool = True) -> Any:
         optimizer = setup_optimizer(config, model)
         optimizer_path = path
         if os.path.exists(optimizer_path):
@@ -715,7 +721,7 @@ class Trainer:
             raise RuntimeError(f"Not found file: {optimizer_path}")
         return optimizer
 
-    def load_train_data(self, path=None):
+    def load_train_data(self, path: "str | None" = None) -> Any:
         curriculum = self.config.data.train.curriculum
         if path is None:
             #path = self.worker_data_path
@@ -738,7 +744,9 @@ class Trainer:
         #dprint(self.train_df.iloc[:5])
         return self.train_df
 
-    def load_status(self, path, record=None, load_optimizer=False, reuse_dataset=False):
+    def load_status(self, path: str, record: "str | None" = None,
+                    load_optimizer: bool = False,
+                    reuse_dataset: bool = False) -> "Trainer":
         model_path = None
         path_candidates = []
         if os.path.isfile(path):
@@ -779,7 +787,8 @@ class Trainer:
             self.set_max_steps()
         return self
 
-    def plot(self, infile_scores, field_x, fields_y, outfile_plot, labels=None):
+    def plot(self, infile_scores: str, field_x: str, fields_y: Any,
+             outfile_plot: str, labels: Any = None) -> Any:
         try:
             import matplotlib
         except ImportError:
@@ -858,7 +867,7 @@ class Trainer:
             return False
         return True
 
-    def show_progress_report(self):
+    def show_progress_report(self) -> Any:
         cdata = self.config.data
         progress = self.progress
         delta = time.time() - progress['last_time']
@@ -965,7 +974,9 @@ class Trainer:
         return progress
 
     #def feed_batches(self, batches, report=False, timeout=None, fallback=False):
-    def feed_batches(self, batches, train, show_report=False, timeout=None, fallback=False, df=None):
+    def feed_batches(self, batches: Any, train: bool, show_report: bool = False,
+                     timeout: "float | None" = None, fallback: bool = False,
+                     df: Any = None) -> Any:
         if train:
             self.model.train()
         else:
@@ -1128,10 +1139,17 @@ class Trainer:
         train_report['error_count'] = progress['total_errors']
         return mean_report
 
-    def test_model(self):
+    def feed_one_batch(self, batch: Any, fallback: bool = False, df: Any = None) -> Any:
+        """Feed one batch and return its report; provided by the subclass
+
+        1 バッチを処理して報告を返す。派生クラスが実装する。
+        """
+        raise NotImplementedError
+
+    def test_model(self) -> Any:
         return False
 
-    def train_epoch(self, args):
+    def train_epoch(self, args: Any) -> Any:
         cdata = self.config.data
         status = cdata.log
         #dprint(self.get_num_params())
@@ -1198,7 +1216,10 @@ class Trainer:
         elapsed = cdata.log.elapsed + (time.time() - start)
         cdata.log.elapsed = elapsed
         #logging.debug(model.optimizer.lr)
-        if (self.last_loss is not None) and (train_report.get('loss') > self.last_loss):
+        current_loss = train_report.get('loss')
+        # 左辺の確認が無く、loss を欠く報告では None と数値の比較になっていた
+        if (self.last_loss is not None) and (current_loss is not None) \
+                and (current_loss > self.last_loss):
             #logging.log("Changing optimizer to SGD")
             #model.set_optimizer('SGD')
             #if curriculum_data.curriculum_criterion.min() > 0:
@@ -1301,7 +1322,7 @@ class Trainer:
             logger.exception(e)
         return True
 
-    def try_loading(self, workdir, list_resume):
+    def try_loading(self, workdir: str, list_resume: Any) -> "Trainer":
         """Load the first of the given records that can be loaded
 
         与えられた記録のうち、最初に読み込めたものを読み込む。
@@ -1340,7 +1361,8 @@ class Trainer:
             raise last_error
         return self
 
-    def save_config(self, workdir, record=None, log=True):
+    def save_config(self, workdir: str, record: "str | None" = None,
+                    log: bool = True) -> None:
         cdata = self.config.data
         recdir = workdir
         if record:
@@ -1359,14 +1381,16 @@ class Trainer:
             fobj.write(self.config.to_json(indent=2, purge=True),)
         return
 
-    def save_labels(self, path):
+    def save_labels(self, path: str) -> None:
         with open(path, 'w', encoding='utf-8') as fobj:
             for label in self.labels:
                 fobj.write(self.vocab.decode(label))
                 fobj.write("\n")
 
-    def save_scores(self, workdir, train_report, dev_report=None, test_report=None):
-        def assign_score(report, scores, report_field, score_field):
+    def save_scores(self, workdir: str, train_report: Any,
+                    dev_report: Any = None, test_report: Any = None) -> Any:
+        def assign_score(report: Any, scores: Any, report_field: str,
+                         score_field: str) -> None:
             if report_field in report:
                 scores[score_field] = report[report_field]
         cdata = self.config.data
@@ -1412,7 +1436,7 @@ class Trainer:
             fobj.write(scores.to_json())
             fobj.write("\n")
 
-    def save_status(self, workdir, record=None):
+    def save_status(self, workdir: str, record: "str | None" = None) -> None:
         recdir = workdir
         if record:
             #recdir = os.path.join(workdir, record)
@@ -1445,14 +1469,16 @@ class Trainer:
         self.save_config(workdir, record=record)
         return
 
-    def save_latest_status(self, link_only=False):
+    def save_latest_status(self, link_only: bool = False) -> None:
         if not link_only:
             self.save_status(self.args.workdir, 'tmp')
             self.save_dataset()
         self.link_status(self.args.workdir, 'latest', 'prev', log=False)
         self.link_status(self.args.workdir, 'tmp', 'latest', log=True)
 
-    def save_best_status(self, path, report, report_name, config_name, ascend=True, best='best', save_model=True):
+    def save_best_status(self, path: str, report: Any, report_name: str,
+                         config_name: str, ascend: bool = True,
+                         best: str = 'best', save_model: bool = True) -> bool:
         score = report.get(report_name)
         #last_best_score = self.config.get(config_name)
         record_name = best + '_' + config_name.replace(' ', '_')
@@ -1487,7 +1513,8 @@ class Trainer:
                 return True
         return False
 
-    def save_last_score(self, path, report, report_name, config_name, last='last'):
+    def save_last_score(self, path: str, report: Any, report_name: str,
+                        config_name: str, last: str = 'last') -> Any:
         score = report.get(report_name)
         record_name = last + '_' + config_name.replace(' ', '_')
         config_field = 'log.' + record_name
@@ -1500,7 +1527,7 @@ class Trainer:
         return True
 
     @classmethod
-    def set_config(cls, config, key, value=None):
+    def set_config(cls, config: Any, key: str, value: Any = None) -> Any:
         if value is None:
             if key in config:
                 return config[key]
@@ -1510,7 +1537,7 @@ class Trainer:
             config[key] = value
             return value
 
-    def save_dataset(self):
+    def save_dataset(self) -> Any:
         cdata = self.config.data
         df = self.train_df
         df.priority = df.criterion * df.cost * df.feed_count * df.last_step / (cdata.log.train_step + 1)
@@ -1523,7 +1550,7 @@ class Trainer:
         safe_rename(self.temp_train_data_path, self.train_data_path)
         return True
 
-    def _fix_max_steps(self, min_steps=1):
+    def _fix_max_steps(self, min_steps: int = 1) -> Any:
         cdata = self.config.data
         max_steps = getattr(self.model, 'max_steps', None)
         if max_steps is not None:
@@ -1534,7 +1561,7 @@ class Trainer:
                 max_steps = min(max_steps, cdata.model.num_layers)
             self.model.max_steps = max_steps
         return max_steps
-    def set_max_steps(self, max_steps=None, min_steps=1):
+    def set_max_steps(self, max_steps: "int | None" = None, min_steps: int = 1) -> Any:
         if 'max_steps' in self.config.data.model:
             if self.config.data.model.max_steps is not None:
                 self.model.max_steps = max_steps
@@ -1542,7 +1569,7 @@ class Trainer:
                 return self.model.max_steps
         return None
 
-    def setup_model(self, args):
+    def setup_model(self, args: Any) -> Any:
         #self.args = args
         cdata = self.config.data
         #dprint(self.config.to_json(indent=2))
@@ -1679,14 +1706,14 @@ class Trainer:
             self.set_max_steps()
         self.last_loss = None
 
-    def setup_dataset(self):
+    def setup_dataset(self) -> Any:
         pass
 
-    def setup_optimizer(self, renew=False):
+    def setup_optimizer(self, renew: bool = False) -> Any:
         if renew or self.optimizer is None:
             self.optimizer = setup_optimizer(self.config, self.model)
 
-    def setup_device(self, args):
+    def setup_device(self, args: Any) -> Any:
         if args.float16:
             self.dtype = torch.float16
         else:
@@ -1707,14 +1734,14 @@ class Trainer:
                         state[k] = v.to(self.device)
 
     @classmethod
-    def get_default(cls, field, value):
+    def get_default(cls, field: str, value: Any) -> Any:
         if value is not None:
             return value
         else:
             return cls.default[field]
 
     @classmethod
-    def update_config(cls, config, args):
+    def update_config(cls, config: Any, args: Any) -> Any:
         global PRESET_CHOICES
         #dprint(config.base)
         #dprint(Config(config.base).to_json(indent=2, upstream=True),)
@@ -1797,7 +1824,7 @@ class Trainer:
         #dprint(config.to_json(indent=2, upstream=True),)
         return config
 
-    def update_model_config(self):
+    def update_model_config(self) -> Any:
         if hasattr(self.model, 'config'):
             hparams = self.model.config
             config = self.config
@@ -1808,7 +1835,7 @@ class Trainer:
         self.get_num_params()
         return self.config
 
-    def update_to_reduce_ponder_cost(self, ponder_cost, penalty):
+    def update_to_reduce_ponder_cost(self, ponder_cost: Any, penalty: Any) -> Any:
         if isinstance(ponder_cost, torch.Tensor):
             try:
                 self.model.zero_grad()
@@ -1819,7 +1846,7 @@ class Trainer:
             except Exception as e:
                 logger.exception(e)
 
-    def update_parameters(self, loss, report=None):
+    def update_parameters(self, loss: torch.Tensor, report: Any = None) -> None:
         if not torch.isfinite(loss):
             return
         cdata = self.config.data
@@ -1857,7 +1884,8 @@ class Trainer:
                         if isinstance(v, torch.Tensor):
                             state[k] = v.cpu()
 
-    def update_best_scores(self, workdir, train_report=None, dev_report=None, test_report=None):
+    def update_best_scores(self, workdir: str, train_report: Any = None,
+                           dev_report: Any = None, test_report: Any = None) -> None:
         if train_report is not None:
             if 'ppl' in train_report:
                 if len(self.train_df[self.train_df.criterion > 0]) > 0:
@@ -1919,7 +1947,7 @@ class Trainer:
             self.save_best_status(workdir, dev_report, 'boundary_f1', 'dev boundary f1', ascend=True)
         #self.link_status(workdir, 'tmp', 'latest')
 
-    def update_train_step(self, increment=True):
+    def update_train_step(self, increment: bool = True) -> Any:
         if self.model.training:
             cdata = self.config.data
             status = cdata.log
@@ -1969,7 +1997,7 @@ class Trainer:
                             param_group['weight_decay'] = weight_decay_rate
 
     @classmethod
-    def add_argument(cls, parser, default, *args, **kwargs):
+    def add_argument(cls, parser: Any, default: Any, *args: Any, **kwargs: Any) -> Any:
         if default is None:
             kwargs['help'] = argparse.SUPPRESS
         else:
@@ -1978,17 +2006,17 @@ class Trainer:
         parser.add_argument(*args, **kwargs)
 
     @classmethod
-    def add_argument_group(cls, parser, check, name, help):
+    def add_argument_group(cls, parser: Any, check: Any, name: str, help: str) -> Any:
         if check:
             return parser.add_argument_group(name, help)
         else:
             return parser.add_argument_group(name, argparse.SUPPRESS)
 
     @classmethod
-    def create_parser(cls, model_name, default=None):
+    def create_parser(cls, model_name: str, default: Any = None) -> Any:
         if default is None:
             default = cls.default
-        parser = {}
+        parser: dict[str, Any] = {}
         parser['main'] = main= argparse.ArgumentParser(f"{model_name} Trainer", add_help=False)
         main.add_argument('--help', '-h', action='store_true', help=_('show this help message and exit'))
         main.add_argument('workdir', help='directory path to write the training dataset, trained models, evaluation status, etc', nargs='?')
@@ -2079,7 +2107,7 @@ class Trainer:
         cls.add_argument(group, default.train.sgd_learning_rate, '--sgd-learning-rate', '--sgd-lr', type=float, help='Learning rate for SGD/AdaBound/AMSBound')
         return parser
 
-def main(Trainer, modelname):
+def main(Trainer: Any, modelname: str) -> Any:
     parser = Trainer.create_parser(modelname)
     main_parser = parser['main']
     args = main_parser.parse_args()
@@ -2102,9 +2130,9 @@ def main(Trainer, modelname):
 
     # setting debug mode
     if args.debug:
+        # 直前の using_config が target_loggers を設定する。以前はこの後に
+        # 取得したロガーを捨てるだけのループが続いており、何もしていなかった
         logging.using_config(target_loggers, debug=True)
-        for l in target_loggers:
-            l = logging.getLogger(l)
         dprint(args)
 
     # setting logging files
@@ -2257,5 +2285,6 @@ def main(Trainer, modelname):
                 logger.warning("received keyboard interruption again")
             sys.exit(1)
 
-if __name__ == '__main__':
-    main()
+# このモジュールに実行の入口は無い (main は Trainer とモデル名を要求する)。
+# コマンドは lpu_nn.commands.train_seq2seq などから起動する。
+# 以前はここに引数無しの main() 呼び出しがあり、必ず TypeError になった

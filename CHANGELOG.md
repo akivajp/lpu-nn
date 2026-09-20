@@ -31,6 +31,21 @@ they mean to catch: a signature mismatch when probing `init_weights`, a
 failure to seek a non-seekable input (which also leaked its file handle),
 and a label that does not parse as a number.
 
+`Trainer.load_labels` read `self.main_train_data_path`, a name that was
+renamed to `train_data_path` and left behind here, so calling it without
+an explicit path raised `AttributeError`. mypy found this one.
+
+The debug branch of `main` ran a loop whose body fetched a logger and
+discarded it, doing nothing; the line above it already configures the
+same loggers. The module ended with `if __name__ == '__main__': main()`,
+although `main` takes a trainer class and a model name, so running the
+module directly could only raise `TypeError`. The entry points live in
+`lpu_nn.commands`.
+
+`Trainer.train_epoch` compared `train_report.get('loss')` against the
+previous loss while checking only the previous one for `None`, so a
+report without a loss compared `None` with a number.
+
 The progress report spelled `amsbound` as `amdbound`, so the dynamic
 lower bound on the learning rate was left out of the line for
 `--optimizer amsbound`. The rate it printed was the raw one, which on a
