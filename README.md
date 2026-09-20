@@ -145,6 +145,33 @@ commands. Each evaluation writes the tagged development set to
 `record.latest/pred_dev.txt` and reports entity precision, recall and F1,
 both with and without matching the labels.
 
+### Resuming a run
+
+`--resume latest` picks the training up from the checkpoint in the work
+directory. The model is rebuilt from the configuration it was saved with and
+the weights are loaded into it, so the parameters that decide its structure
+(`--embed-size`, `--hidden-size`, `--num-layers`, ...) keep the values the
+checkpoint carries; passing a different one reports what it ignored rather
+than failing to load the weights.
+
+Everything else follows the command line, which is what continued training
+needs: the corpus, `--num-epochs`, `--batch-size`, `--optimizer`,
+`--learning-rate`, `--dropout-ratio` and the rest of the training settings
+can all be replaced on a resume.
+
+```shell
+$ lpu-nn-train-seq2seq workdir more-data.tsv --resume latest \
+    --num-epochs 20 --batch-size 64 --optimizer adam
+```
+
+`--override-model-params` lifts the restriction for the cases where it is
+safe, such as raising `--max-length`. A change that alters the shape of a
+weight still cannot load, and the command says so.
+
+Note that resuming without raising `--num-epochs` past the epoch already
+reached does nothing at all: there is no epoch left to run, so no checkpoint
+is written.
+
 Run any command with `--help` for the full list of options.
 
 ## Layout

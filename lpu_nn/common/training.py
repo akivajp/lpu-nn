@@ -378,6 +378,8 @@ class Trainer:
     def __init__(self, args: Any = None) -> None:
         self.args = args
         self.config = Config(self.default)
+        # --resume で読み込んだチェックポイントのモデル設定 (未読込なら空)
+        self.checkpoint_model_params: dict[str, Any] = {}
         # 構築時には未設定で、後から setup で入る
         self.idmaps: Any = None
         self.last_loss: Any = None
@@ -669,8 +671,15 @@ class Trainer:
         loaded_state_dict = torch.load(model_path, 'cpu')
         config = Config(self.default)
         config.update(loaded_state_dict['config'])
+        # モデルはこの後 config から再構築され、そこへ重みを読み込む。
+        # 構造に関わる設定が CLI で変わると形が合わず読み込みに失敗するため、
+        # チェックポイント側の値を控えておく
+        self.checkpoint_model_params = {
+            key: config['model'][key] for key in self.default['model']
+        }
         if self.args is not None:
             config = self.update_config(config, self.args)
+            config = self.restore_checkpoint_model_params(config)
         dprint(config.to_json(upstream=True, indent=2))
         params = config.to_dict(flat=True, upstream=True)
         if 'idmaps' not in loaded_state_dict:
@@ -684,6 +693,12 @@ class Trainer:
         try:
             model.load_state_dict(loaded_model_state_dict)
         except Exception as e:
+            if getattr(self.args, 'override_model_params', False):
+                # 形が合わない原因は、直前に報告した上書きである可能性が高い
+                logger.warning(
+                    "the model was rebuilt with the parameters given on the "
+                    "command line (--override-model-params); dropping that "
+                    "flag keeps the structure the checkpoint was built with")
             if force:
                 #logger.exception(e)
                 logger.error(repr(e))
@@ -1741,6 +1756,48 @@ class Trainer:
         else:
             return cls.default[field]
 
+    def restore_checkpoint_model_params(self, config: Any = None) -> Any:
+        """Put the checkpoint's model parameters back over the command line
+
+        チェックポイントのモデル設定を、コマンドラインの指定の上に戻す。
+
+        `--resume` ではモデルをこの設定から再構築したうえで重みを読み込む
+        ため、構造に関わる値 (embed_size, hidden_size, num_layers など) が
+        変わると形が合わず読み込みに失敗する。既定ではチェックポイント側を
+        保ち、指定が捨てられたことは警告で知らせる。意図して変える場合は
+        `--override-model-params` を渡す。
+
+        学習側の設定 (train / log セクション) は対象外なので、継続学習で
+        バッチサイズや最適化器、データセットを差し替えることはできる。
+        """
+        if config is None:
+            config = self.config
+        saved = getattr(self, 'checkpoint_model_params', None)
+        if not saved:
+            return config
+        overriding = bool(getattr(self.args, 'override_model_params', False))
+        changed = {
+            key: (val, config['model'][key])
+            for key, val in saved.items()
+            if config['model'][key] != val
+        }
+        if not changed:
+            return config
+        if overriding:
+            for key, (was, now) in changed.items():
+                logger.warning(
+                    f"overriding the model parameter of the checkpoint: "
+                    f"{key}: {was!r} -> {now!r}")
+            return config
+        for key, (was, now) in changed.items():
+            logger.warning(
+                f"ignoring the model parameter given on the command line, "
+                f"because the checkpoint was built with another value: "
+                f"{key}: {now!r} -> {was!r} "
+                f"(pass --override-model-params to change it anyway)")
+            config['model'][key] = was
+        return config
+
     @classmethod
     def update_config(cls, config: Any, args: Any) -> Any:
         global PRESET_CHOICES
@@ -1776,6 +1833,8 @@ class Trainer:
         #ignore.append('max_epochs')
         ignore.append('num_epochs')
         ignore.append('move_optimizer')
+        # 1 回の実行限りの指定であり、設定へ畳み込まない
+        ignore.append('override_model_params')
         params = vars(args)
         if args.float16:
             params['dtype'] = 'float16'
@@ -2072,6 +2131,8 @@ class Trainer:
         #group.add_argument('--start_steps', '--start', type=int, default=None, help='Step count starting from (default: %(default)s)')
         #group.add_argument('--train-factor', '--factor', '--tf', '-F', type=float, default=None, help='Training factor for learning rate (default: {})'.format(default.train.factor))
         cls.add_argument(group, default.train.warmup_factor, '--warmup-factor', '--train-factor', '--factor', '--wf', '-F', type=float, help='Training factor for learning rate')
+        group.add_argument('--override-model-params', '--override-model', action='store_true',
+                           help='On --resume, let the command line change the model structure instead of keeping the values the checkpoint was built with')
         group.add_argument('--resume', '-R', type=str, help='list of path to the resuming models (ends with ".npz") or suffix name (e.g. "latest", "best_dev_loss")', nargs='*')
         group.add_argument('--interval', '-I', type=float, default=None, help=f'Interval of training report (in seconds, default: {default.log.interval})')
         group.add_argument('--filter-noisy-samples', '--filter-noise', '--filter', type=strtobool, default=None, nargs='?', const=True, help='Filtering noisy training examples gradually with training steps')
@@ -2232,6 +2293,9 @@ def main(Trainer: Any, modelname: str) -> Any:
     set_logfile_handler(logpath)
 
     trainer.config = trainer.update_config(trainer.config, args)
+    # 上の再マージでコマンドラインの指定が再び載るため、ここでも戻す
+    # (設定ファイルに記録される値を、実際のモデルと一致させる)
+    trainer.config = trainer.restore_checkpoint_model_params(trainer.config)
     if args.import_embed and not args.resume:
         vocab.import_vectors(args.import_embed)
     trainer.setup_model(args)

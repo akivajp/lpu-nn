@@ -13,6 +13,10 @@
 
 ### Added
 
+- `--override-model-params`, which lets a resume change the model structure
+  the checkpoint was built with. Without it the structural parameters keep
+  the checkpoint's values, and a differing one on the command line is
+  reported rather than applied.
 - The sequence tagging path of the same codebase: the CRF, the
   `SequenceTagger` over a BiLSTM, a transformer or a BERT encoder, and the
   `lpu-nn-train-tagger` command, which reports entity precision, recall and
@@ -49,6 +53,13 @@
   about 1,900 lines of duplicated code.
 
 ### Fixed
+
+Resuming a run rebuilt the model from the merged configuration before
+loading the weights into it, so a model parameter given on the command line
+changed its structure and `load_state_dict` then failed on the shapes. The
+recovery path, which keeps only the matching keys, failed the same way, and
+the run exited non-zero. `--resume --hidden-size 64` was enough to trigger
+it. The structural parameters now keep the values the checkpoint carries.
 
 `modeling/sequence_tagger.py` declared its classes against `modules`, the
 name `modeling` was renamed from, so it could not be imported at all, taking

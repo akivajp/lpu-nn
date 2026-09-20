@@ -13,6 +13,9 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
 
 ### 追加
 
+- `--override-model-params`。再開時に、チェックポイントが持つモデル構造を
+  コマンドラインから変更できるようにする。指定しない場合、構造に関わる
+  設定はチェックポイントの値を保ち、異なる指定は適用せず報告する。
 - 同じコードベースの系列タギング部分。CRF、BiLSTM / Transformer / BERT の
   各符号化器に載る `SequenceTagger`、そして固有表現の適合率・再現率・F1 を
   報告し、タグ付けした開発セットをチェックポイントの隣に書き出す
@@ -47,6 +50,13 @@ English version is available in [CHANGELOG.md](CHANGELOG.md).
   ものを用います。これにより約 1,900 行の重複コードが不要になりました。
 
 ### 修正
+
+学習の再開時、モデルをマージ後の設定から組み直してから重みを読み込んで
+いたため、コマンドラインで与えたモデルパラメータが構造を変えてしまい、
+`load_state_dict` が形状不一致で失敗していた。一致する鍵だけを拾う
+復旧経路も同じ理由で失敗し、実行は異常終了していた。
+`--resume --hidden-size 64` だけで再現する。構造に関わる設定は
+チェックポイントの値を保つようにした。
 
 `modeling/sequence_tagger.py` が、`modeling` の旧称である `modules` を
 基底クラスに使っており、そもそも import できなかった。`train_tagger` も

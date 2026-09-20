@@ -9,6 +9,7 @@ lpu_nn.common.training.Trainer の設定組み立てのテスト。
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -26,7 +27,7 @@ BASE_ARGS = [
 ]
 
 
-def train(workdir, *extra):
+def train(workdir, *extra, check=True):
     '''Run one epoch of training with the given extra arguments
 
     追加引数を与えて 1 エポック訓練する。
@@ -35,8 +36,22 @@ def train(workdir, *extra):
         sys.executable, '-m', 'lpu_nn.commands.train_seq2seq',
         str(workdir), CORPUS, *BASE_ARGS, *extra,
     ], capture_output=True, cwd=REPO_ROOT)
-    assert result.returncode == 0, result.stderr.decode()[-2000:]
+    if check:
+        assert result.returncode == 0, result.stderr.decode()[-2000:]
     return result
+
+
+def resume(workdir, *extra, check=True):
+    '''Resume the run for one more epoch
+
+    さらに 1 エポック分だけ再開する。
+
+    エポック数を増やさずに再開すると、既に到達済みとして学習も記録の
+    書き出しも行われない。その状態で設定ファイルを読むと、再開前の内容を
+    見て「指定が効かなかった」と誤読することになる。
+    '''
+    return train(workdir, '--resume', 'latest', '--num-epochs', '2',
+                 *extra, check=check)
 
 
 def saved_config(workdir):
@@ -80,22 +95,90 @@ class TestCommandLinePrecedence:
         config = saved_config(trained)
         assert config['model']['hidden_size'] == 32
 
-    def test_resuming_without_the_flag_keeps_the_saved_value(self, trained):
+    def test_resuming_without_the_flag_keeps_the_saved_value(self, resumable):
         # 保存済みの値は、指定し直さなくても引き継がれること
-        train(trained, '--resume', 'latest')
-        assert saved_config(trained)['train']['dropout_ratio'] == 0.3
+        resume(resumable)
+        assert saved_config(resumable)['train']['dropout_ratio'] == 0.3
 
-    def test_resuming_keeps_the_saved_value_over_the_command_line(self, trained):
-        """The saved configuration wins on a resume, even against an explicit flag
 
-        再開時は、明示的に指定した引数よりも保存済みの設定が優先される。
+@pytest.fixture(scope='module')
+def _trained_once(tmp_path_factory):
+    '''One finished epoch, kept to be copied per test
 
-        この振る舞いは意図的とも読めるが (再開したモデルの設定を勝手に
-        変えない)、`--dropout-ratio` のような訓練側の値まで変更できない
-        ことになる。現状を固定し、変えるかどうかは別途の判断とする。
+    1 エポック分の結果。テストごとに複製して使う。
+    '''
+    workdir = tmp_path_factory.mktemp('resume-base') / 'work'
+    train(workdir, '--dropout-ratio', '0.3')
+    return workdir
+
+
+@pytest.fixture
+def resumable(_trained_once, tmp_path):
+    '''A fresh copy of that run, so each test resumes independently
+
+    その結果の複製。テストごとに独立して再開できるようにする。
+    '''
+    workdir = tmp_path / 'work'
+    shutil.copytree(_trained_once, workdir)
+    return workdir
+
+
+class TestResume:
+    """What a resume takes from the command line and what it keeps
+
+    再開時に、コマンドラインから受け取る設定と、チェックポイントの値を
+    保つ設定の区別。
+
+    モデルは保存済みの設定から組み直したうえで重みを読み込むため、構造に
+    関わる値が変わると形が合わずに読み込みが失敗する。訓練側の設定には
+    その制約が無く、継続学習では差し替えられる必要がある。
+    """
+
+    def test_a_training_parameter_follows_the_command_line(self, resumable):
+        # 継続学習で学習条件を変えられること
+        resume(resumable, '--dropout-ratio', '0.05')
+        assert saved_config(resumable)['train']['dropout_ratio'] == 0.05
+
+    def test_the_optimizer_can_be_replaced(self, resumable):
+        resume(resumable, '--optimizer', 'adam')
+        assert saved_config(resumable)['train']['optimizer'] == 'adam'
+
+    def test_a_model_parameter_keeps_the_checkpoint_value(self, resumable):
+        """Rebuilding the model at another size cannot load the weights
+
+        0.1.0.dev0 は指定どおりの大きさでモデルを組み直してから重みを
+        読み込もうとし、形状不一致で異常終了していた。
         """
-        train(trained, '--resume', 'latest', '--dropout-ratio', '0.05')
-        assert saved_config(trained)['train']['dropout_ratio'] == 0.3
+        resume(resumable, '--hidden-size', '64')
+        assert saved_config(resumable)['model']['hidden_size'] == 32
+
+    def test_changing_a_model_parameter_no_longer_aborts(self, resumable):
+        # 以前はここで終了コード 1 になっていた
+        result = resume(resumable, '--hidden-size', '64', check=False)
+        assert result.returncode == 0
+
+    def test_the_ignored_parameter_is_reported(self, resumable):
+        '''Dropping a value silently would be worse than not applying it
+
+        黙って捨てず、上書きしたい場合の手段まで伝えること。
+        '''
+        result = resume(resumable, '--hidden-size', '64')
+        message = (result.stdout + result.stderr).decode()
+        assert 'hidden_size' in message
+        assert '--override-model-params' in message
+
+    def test_the_flag_applies_a_compatible_model_parameter(self, resumable):
+        # 構造に影響しない値は、フラグを付ければ変更できること
+        resume(resumable, '--max-length', '128', '--override-model-params')
+        assert saved_config(resumable)['model']['max_length'] == 128
+
+    def test_the_flag_is_not_folded_into_the_configuration(self, resumable):
+        # 1 回の実行限りの指定であり、設定に残らないこと
+        resume(resumable, '--override-model-params')
+        config = saved_config(resumable)
+        assert 'override_model_params' not in config.get('model', {})
+        assert 'override_model_params' not in config.get('train', {})
+        assert 'override_model_params' not in config.get('log', {})
 
 
 class TestFloat16:

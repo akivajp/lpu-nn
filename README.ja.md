@@ -147,6 +147,32 @@ $ lpu-nn-train-tagger workdir tag-train.tsv --dev-files tag-dev.tsv --gpu 0
 `record.latest/pred_dev.txt` へ書き出し、固有表現の適合率・再現率・F1 を
 (ラベル一致あり / 境界のみ の 2 通りで) 報告します。
 
+### 学習の再開
+
+`--resume latest` で、作業ディレクトリのチェックポイントから学習を再開
+します。モデルは保存時の設定から組み直したうえで重みを読み込むため、
+構造を決める設定 (`--embed-size`, `--hidden-size`, `--num-layers` など) は
+チェックポイントの値を保ちます。異なる値を渡した場合は、重みの読み込みに
+失敗する代わりに、無視した指定を報告します。
+
+それ以外はコマンドラインに従います。これは継続学習に必要な挙動です。
+コーパス、`--num-epochs`、`--batch-size`、`--optimizer`、
+`--learning-rate`、`--dropout-ratio` などの学習側の設定は、再開時に
+差し替えられます。
+
+```shell
+$ lpu-nn-train-seq2seq workdir more-data.tsv --resume latest \
+    --num-epochs 20 --batch-size 64 --optimizer adam
+```
+
+`--override-model-params` を付けると、この制限を外せます。`--max-length`
+を広げるなど、安全に変更できる場合に使います。重みの形が変わる変更は
+やはり読み込めず、その旨が表示されます。
+
+なお、到達済みのエポック数を超えて `--num-epochs` を増やさずに再開しても
+何も起きません。実行すべきエポックが残っておらず、チェックポイントも
+書き出されないためです。
+
 いずれのコマンドも `--help` で全オプションを確認できます。
 
 ## 構成
